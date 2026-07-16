@@ -5,28 +5,37 @@ Public surface, by consumer:
 * Orchestrator -> `benefits_agent` (wrap with ADK's AgentTool)
 * UI           -> `BenefitsAnswer` (`.model_dump_json()`)
 * Anyone       -> `answer_benefits_question(...)`, pure and LLM-free
-* Integration  -> `contract` (constants only; imports nothing)
+* Integration  -> `AGENT_KEY`, `EVENT_TYPE`, `NETWORK_GAP_EVENT`, `StateKeys`,
+                  `roi_permits_detail` (constants and one pure function)
 
-Importing this module does not construct the ADK agent -- `agent` is resolved
-lazily so the deterministic core stays usable without google-adk installed.
+Everything lives in `agent.py`. Importing this module does not construct the ADK
+agent -- `benefits_agent` is resolved lazily so the deterministic core stays
+usable without google-adk installed.
 """
 
-from . import contract, events
-from .answer import answer_benefits_question
-from .clients import (
+from .agent import (
+    AGENT_KEY,
+    EVENT_TYPE,
+    NETWORK_GAP_EVENT,
+    BenefitsAnswer,
+    CostBreakdown,
     CoverageRulesClient,
+    CsvBenefitsKB,
     MemberRecordsClient,
     ProviderDirectoryClient,
+    ProviderResult,
+    Resolution,
+    Settings,
+    StateKeys,
+    answer_benefits_question,
+    data_source,
+    find_provider,
     get_coverage_rules_client,
     get_member_records_client,
     get_provider_directory_client,
+    get_settings,
+    roi_permits_detail,
 )
-from .contract import AGENT_KEY, EVENT_TYPE, NETWORK_GAP_EVENT, StateKeys, roi_permits_detail
-from .kb import CsvBenefitsKB
-from .loader import data_source
-from .models import BenefitsAnswer, CostBreakdown, ProviderResult, Resolution
-from .providers import find_provider
-from .settings import Settings, get_settings
 
 __all__ = [
     "AGENT_KEY",
@@ -45,9 +54,7 @@ __all__ = [
     "answer_benefits_question",
     "benefits_agent",
     "build_agent",
-    "contract",
     "data_source",
-    "events",
     "find_provider",
     "get_coverage_rules_client",
     "get_member_records_client",

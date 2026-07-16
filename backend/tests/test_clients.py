@@ -12,29 +12,27 @@ from pathlib import Path
 
 import pytest
 
-from benefits import loader
-from benefits.clients import (
+from benefits import agent as agent_mod
+from benefits.agent import (
     FALLBACK_SOURCE,
-    CsvCoverageRulesClient,
-    CsvMemberRecordsClient,
-    CsvProviderDirectoryClient,
-    get_coverage_rules_client,
-    get_member_records_client,
-    get_provider_directory_client,
-)
-from benefits.clients.bigquery_client import (
     BigQueryCoverageRulesClient,
     BigQueryMemberRecordsClient,
     BigQueryProviderDirectoryClient,
     BigQueryUnavailable,
-)
-from benefits.clients.mapping import coerce_bool, coerce_int, coerce_str
-from benefits.clients.protocols import (
     CoverageRulesClient,
+    CsvCoverageRulesClient,
+    CsvMemberRecordsClient,
+    CsvProviderDirectoryClient,
     MemberRecordsClient,
     ProviderDirectoryClient,
+    Settings,
+    coerce_bool,
+    coerce_int,
+    coerce_str,
+    get_coverage_rules_client,
+    get_member_records_client,
+    get_provider_directory_client,
 )
-from benefits.settings import Settings
 
 pd = pytest.importorskip("pandas")
 
@@ -125,9 +123,9 @@ def fake_bq() -> FakeBigQuery:
 
 @pytest.fixture(autouse=True)
 def _clear_loader_cache():
-    loader.reset_cache()
+    agent_mod.reset_cache()
     yield
-    loader.reset_cache()
+    agent_mod.reset_cache()
 
 
 # --------------------------------------------------------------------------
@@ -192,12 +190,11 @@ def test_toggle_selects_csv(csv_settings):
 
 def test_falls_back_to_csv_when_bigquery_fails(bq_settings, monkeypatch):
     """The demo must not hard-fail on a BigQuery outage."""
-    import benefits.clients.bigquery_client as bq_mod
 
     def explode(self):
         raise BigQueryUnavailable("no credentials")
 
-    monkeypatch.setattr(bq_mod._BigQueryClient, "_load_dataframe", explode)
+    monkeypatch.setattr(agent_mod._BigQueryClient, "_load_dataframe", explode)
 
     client = get_coverage_rules_client(bq_settings)
     assert isinstance(client, CsvCoverageRulesClient)
@@ -206,10 +203,9 @@ def test_falls_back_to_csv_when_bigquery_fails(bq_settings, monkeypatch):
 
 
 def test_fallback_is_reported_not_silent(bq_settings, monkeypatch, caplog):
-    import benefits.clients.bigquery_client as bq_mod
 
     monkeypatch.setattr(
-        bq_mod._BigQueryClient,
+        agent_mod._BigQueryClient,
         "_load_dataframe",
         lambda self: (_ for _ in ()).throw(BigQueryUnavailable("boom")),
     )
@@ -219,10 +215,9 @@ def test_fallback_is_reported_not_silent(bq_settings, monkeypatch, caplog):
 
 
 def test_strict_mode_refuses_to_fall_back(monkeypatch):
-    import benefits.clients.bigquery_client as bq_mod
 
     monkeypatch.setattr(
-        bq_mod._BigQueryClient,
+        agent_mod._BigQueryClient,
         "_load_dataframe",
         lambda self: (_ for _ in ()).throw(BigQueryUnavailable("boom")),
     )
@@ -245,12 +240,10 @@ def test_empty_table_is_treated_as_misconfiguration(bq_settings):
 
 def test_missing_extra_degrades_rather_than_crashing(bq_settings, monkeypatch):
     """No pandas/bigquery installed must mean CSV, not ImportError at import."""
-    import benefits.clients as clients_mod
-
-    def no_extra():
+    def no_extra(settings=None):
         raise ImportError("No module named 'google.cloud.bigquery'")
 
-    monkeypatch.setattr(clients_mod, "_bigquery_impls", no_extra)
+    monkeypatch.setitem(agent_mod._BIGQUERY, "coverage_rules", no_extra)
     client = get_coverage_rules_client(bq_settings)
     assert isinstance(client, CsvCoverageRulesClient)
     assert client.source == FALLBACK_SOURCE
@@ -355,23 +348,19 @@ def test_grid_assert_runs_against_bigquery_rows(bq_settings, monkeypatch, fake_b
     truncated = fake_bq.frames["coverage_rules"].head(40)
     partial = FakeBigQuery({"coverage_rules": truncated})
 
-    import benefits.clients as clients_mod
-
-    monkeypatch.setattr(
-        clients_mod,
-        "_bigquery_impls",
-        lambda: {"coverage_rules": lambda settings: BigQueryCoverageRulesClient(
-            settings=settings, bq_client=partial
-        )},
+    monkeypatch.setitem(
+        agent_mod._BIGQUERY,
+        "coverage_rules",
+        lambda settings: BigQueryCoverageRulesClient(settings=settings, bq_client=partial),
     )
-    monkeypatch.setattr(loader, "get_coverage_rules_client",
-                        lambda: clients_mod._build("coverage_rules", bq_settings))
+    monkeypatch.setattr(agent_mod, "get_coverage_rules_client",
+                        lambda: agent_mod._build("coverage_rules", bq_settings))
     with pytest.raises(AssertionError, match="expected 80"):
-        loader.load_rules()
+        agent_mod.load_rules()
 
 
 def test_answer_reports_its_data_source():
-    from benefits.answer import answer_benefits_question
+    from benefits.agent import answer_benefits_question
 
     a = answer_benefits_question("colonoscopy", member_id="MBR00183")
     assert a.data_source == "csv"
@@ -383,19 +372,17 @@ def test_each_table_is_fetched_from_exactly_one_client(monkeypatch, csv_settings
     table would double the round trips. data_source() must reuse, not rebuild."""
     built: list[str] = []
 
-    import benefits.clients as clients_mod
-
-    real_build = clients_mod._build
+    real_build = agent_mod._build
 
     def counting_build(kind, settings):
         built.append(kind)
         return real_build(kind, settings)
 
-    monkeypatch.setattr(clients_mod, "_build", counting_build)
+    monkeypatch.setattr(agent_mod, "_build", counting_build)
     for name in ("get_coverage_rules_client", "get_member_records_client",
                  "get_provider_directory_client"):
         monkeypatch.setattr(
-            loader, name,
+            agent_mod, name,
             lambda kind=name: counting_build(
                 {"get_coverage_rules_client": "coverage_rules",
                  "get_member_records_client": "members",
@@ -404,11 +391,11 @@ def test_each_table_is_fetched_from_exactly_one_client(monkeypatch, csv_settings
             ),
         )
 
-    loader.load_rules()
-    loader.load_members()
-    loader.load_providers()
-    loader.data_source()
-    loader.rule_index()
-    loader.descriptions()
+    agent_mod.load_rules()
+    agent_mod.load_members()
+    agent_mod.load_providers()
+    agent_mod.data_source()
+    agent_mod.rule_index()
+    agent_mod.descriptions()
 
     assert sorted(built) == ["coverage_rules", "members", "providers"]

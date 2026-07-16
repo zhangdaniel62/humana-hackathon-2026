@@ -22,8 +22,8 @@ Only `benefits.agent` needs Gemini, and that runs in the GADK environment
 ## Data source: CSV or BigQuery
 
 `BENEFITS_DATA_SOURCE` selects the backend. Everything above the client layer —
-`kb.py`, `providers.py`, `answer.py` — is backend-agnostic and never sees a
-DataFrame.
+the kb, providers and answer sections of `agent.py` — is backend-agnostic and
+never sees a DataFrame.
 
 ```bash
 BENEFITS_DATA_SOURCE=csv           # default: no creds, no network, cannot fail
@@ -32,7 +32,7 @@ BENEFITS_BQ_PROJECT=your-project   # required when bigquery is selected
 BENEFITS_BQ_DATASET=your_dataset
 ```
 
-Three protocols, two implementations each (`benefits/clients/`):
+Three protocols, two implementations each (the client sections of `agent.py`):
 
 | Protocol | CSV | BigQuery |
 |---|---|---|
@@ -69,9 +69,9 @@ startup rather than surfacing as a `KeyError` mid-demo.
 ## The design in one line
 
 Coverage is a dict lookup over a total 20×4 grid, so the LLM is a *presentation*
-layer, not a reasoning layer. `answer.py` produces the complete four-part answer
-— covered, prior auth, cost, next step — before any model is involved. The agent
-re-narrates and translates it; it adds no facts.
+layer, not a reasoning layer. The answer section of `agent.py` produces the
+complete four-part answer — covered, prior auth, cost, next step — before any
+model is involved. The agent re-narrates and translates it; it adds no facts.
 
 Consequence worth knowing: **the LLM is the most cuttable component here, not the
 least.** If Gemini is down on demo day, `dev_cli.py` still gives correct,
@@ -89,7 +89,7 @@ from benefits import benefits_agent
 AgentTool(agent=benefits_agent)
 ```
 
-Everything at the seam is a constant in `contract.py` (which imports nothing, so
+Everything at the seam is a constant in the contract section of `agent.py` (so
 it's safe to import from anywhere):
 
 | Session-state key | Direction | Notes |
@@ -149,23 +149,23 @@ Each of these is forced by the data, and each is load-bearing:
   PPO. Picking one silently is a coin flip on telling a member a non-covered
   service is free. So we ask.
 - **A not-covered service is never described as `$0`.** All 8 not-covered rows
-  carry `copay=0, cost_share_pct=0`, so `cost.py` branches on `covered` before it
-  reads a money field.
+  carry `copay=0, cost_share_pct=0`, so the cost section branches on `covered`
+  before it reads a money field.
 - **No dollar total, ever.** copay and coinsurance are both non-zero on 43 of 80
   rules, and the allowed amount doesn't exist until adjudication.
 - **No distances.** `lat/lon` disagree with `city/state` and the median nearest
   eligible provider is 217 miles away, so mileage would be false precision.
 - **No fuzzy matching.** Over 20 fixed codes there's no ground truth to tune a
   threshold against — difflib matches "colonoscopy" to "Total Knee Arthroplasty"
-  at any cutoff loose enough to catch real paraphrases. `aliases.py` is a hand
-  map, which also lets ambiguity be *declared* rather than discovered.
+  at any cutoff loose enough to catch real paraphrases. The aliases section is a
+  hand map, which also lets ambiguity be *declared* rather than discovered.
 - **`claims.csv` is never read for coverage.** 50/880 claims disagree with
   `coverage_rules` on prior-auth and 99 exist for services the plan doesn't
   cover; mixing them would let the agent contradict itself mid-session.
 
 ## Emitted events
 
-Appended to `benefits.events.EVENT_LOG` (fire-and-forget, never in the request
+Appended to `benefits.agent.EVENT_LOG` (fire-and-forget, never in the request
 path):
 
 - `coverage_question_answered` — `{session_id, member_id, cpt_code,

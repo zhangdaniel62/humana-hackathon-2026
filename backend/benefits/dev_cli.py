@@ -13,8 +13,7 @@ import argparse
 import json
 import sys
 
-from .answer import answer_benefits_question
-from .loader import load_members
+from .agent import answer_benefits_question, load_members
 
 DEMO_MEMBER = "MBR00183"
 

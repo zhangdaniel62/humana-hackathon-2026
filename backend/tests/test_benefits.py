@@ -8,13 +8,19 @@ not-covered service must never be described as costing $0.
 
 import pytest
 
-from benefits.answer import answer_benefits_question as ask
-from benefits.contract import PLAN_TYPES, roi_permits_detail
-from benefits.cost import cost_breakdown
-from benefits.kb import CsvBenefitsKB
-from benefits.loader import load_members, load_providers, load_rules, parse_bool
-from benefits.models import Resolution
-from benefits.providers import find_provider
+from benefits.agent import (
+    PLAN_TYPES,
+    CsvBenefitsKB,
+    Resolution,
+    cost_breakdown,
+    find_provider,
+    load_members,
+    load_providers,
+    load_rules,
+    parse_bool,
+    roi_permits_detail,
+)
+from benefits.agent import answer_benefits_question as ask
 
 KB = CsvBenefitsKB()
 
@@ -310,16 +316,15 @@ class StubContext:
 
 @pytest.fixture(autouse=True)
 def _clear_events():
-    from benefits import events
+    from benefits.agent import EVENT_LOG
 
-    events.EVENT_LOG.clear()
+    EVENT_LOG.clear()
     yield
-    events.EVENT_LOG.clear()
+    EVENT_LOG.clear()
 
 
 def test_tool_grounds_and_records_to_state():
-    from benefits.contract import AGENT_KEY, StateKeys
-    from benefits.tools import lookup_coverage
+    from benefits.agent import AGENT_KEY, StateKeys, lookup_coverage
 
     ctx = StubContext(subject_member_id="MBR00183", roi_status="verified", session_id="S1")
     out = lookup_coverage("what would a colonoscopy cost me", ctx)
@@ -333,12 +338,10 @@ def test_tool_grounds_and_records_to_state():
 
 
 def test_tool_emits_coverage_event():
-    from benefits import events
-    from benefits.contract import EVENT_TYPE
-    from benefits.tools import lookup_coverage
+    from benefits.agent import EVENT_LOG, EVENT_TYPE, lookup_coverage
 
     lookup_coverage("colonoscopy", StubContext(subject_member_id="MBR00183", session_id="S1"))
-    event = next(e for e in events.EVENT_LOG if e["event_type"] == EVENT_TYPE)
+    event = next(e for e in EVENT_LOG if e["event_type"] == EVENT_TYPE)
     assert event["cpt_code"] == "45378"
     assert event["matched_rule_id"] == "RULE0070"
     assert event["answered_in_language"] == "Spanish"
@@ -346,7 +349,7 @@ def test_tool_emits_coverage_event():
 
 
 def test_tool_refuses_without_roi_and_leaks_nothing():
-    from benefits.tools import lookup_coverage
+    from benefits.agent import lookup_coverage
 
     ctx = StubContext(subject_member_id="MBR00183", roi_status="expired")
     out = lookup_coverage("colonoscopy", ctx)
@@ -357,7 +360,7 @@ def test_tool_refuses_without_roi_and_leaks_nothing():
 
 
 def test_tool_requires_a_member():
-    from benefits.tools import lookup_coverage
+    from benefits.agent import lookup_coverage
 
     assert lookup_coverage("colonoscopy", StubContext())["status"] == "no_member"
 
@@ -365,12 +368,10 @@ def test_tool_requires_a_member():
 def test_network_gap_event_is_emitted_for_zero_gastro():
     """A specialty in-network with nobody accepting new patients is a
     network-adequacy finding -- it feeds Sentinel's dashboard."""
-    from benefits import events
-    from benefits.contract import NETWORK_GAP_EVENT
-    from benefits.tools import find_provider as find_provider_tool
+    from benefits.agent import EVENT_LOG, NETWORK_GAP_EVENT, find_provider_tool
 
     out = find_provider_tool("colonoscopy", StubContext(subject_member_id="MBR00183"))
     assert out["basis"] == "pcp_referral"
-    event = next(e for e in events.EVENT_LOG if e["event_type"] == NETWORK_GAP_EVENT)
+    event = next(e for e in EVENT_LOG if e["event_type"] == NETWORK_GAP_EVENT)
     assert event["specialty"] == "Gastroenterology"
     assert event["member_state"] == "DE"
