@@ -220,3 +220,7 @@ __marimo__/
 .streamlit/secrets.toml
 
 .idea
+.env
+
+# Google ADK local session and artifact state
+.adk/
