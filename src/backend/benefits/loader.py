@@ -1,64 +1,61 @@
-"""CSV -> models. stdlib only; loaded once and cached at module level."""
+"""Facade over the data clients.
 
-import csv
-import os
+Everything above this module (kb.py, providers.py, answer.py) calls these
+functions and is unaware of whether the rows came from CSV or BigQuery. Swapping
+the backend touches only `settings.data_source`.
+
+Loaded once per process and cached: the whole dataset is ~330 rows.
+"""
+
 from functools import lru_cache
-from pathlib import Path
 
+from .clients import (
+    get_coverage_rules_client,
+    get_member_records_client,
+    get_provider_directory_client,
+)
+from .clients.mapping import coerce_bool as parse_bool  # re-exported; see note below
 from .contract import PLAN_TYPES
 from .models import CoverageRule, Member, Provider
+from .settings import get_settings
 
-DATASETS = Path(
-    os.getenv("BENEFITS_DATASETS_DIR")
-    or Path(__file__).resolve().parents[3] / "datasets"
-)
+# `parse_bool` predates the client layer and is still the clearest name at call
+# sites; coerce_bool is the same function generalised to BigQuery's native types.
 
-_TRUE = {"true", "t", "yes", "y", "1"}
-_FALSE = {"false", "f", "no", "n", "0", ""}
+DATASETS = get_settings().datasets_dir
 
 
-def parse_bool(raw: str) -> bool:
-    """Parse the CSVs' lowercase 'true'/'false' strings.
-
-    bool("false") is True, so the naive cast silently inverts every negative
-    flag in the dataset -- including `covered`. Reject anything unrecognised
-    rather than guessing.
-    """
-    v = raw.strip().lower()
-    if v in _TRUE:
-        return True
-    if v in _FALSE:
-        return False
-    raise ValueError(f"unparseable boolean: {raw!r}")
+# Clients are cached, not just their rows: constructing one runs a BigQuery
+# query, so a second construction would mean a second round trip per table.
+@lru_cache(maxsize=1)
+def _rules_client():
+    return get_coverage_rules_client()
 
 
-def _rows(name: str) -> list[dict[str, str]]:
-    with (DATASETS / name).open(newline="", encoding="utf-8") as fh:
-        return list(csv.DictReader(fh))
+@lru_cache(maxsize=1)
+def _members_client():
+    return get_member_records_client()
+
+
+@lru_cache(maxsize=1)
+def _providers_client():
+    return get_provider_directory_client()
 
 
 @lru_cache(maxsize=1)
 def load_rules() -> tuple[CoverageRule, ...]:
-    rules = tuple(
-        CoverageRule(
-            rule_id=r["rule_id"],
-            plan_type=r["plan_type"],
-            cpt_code=r["cpt_code"],
-            cpt_description=r["cpt_description"],
-            covered=parse_bool(r["covered"]),
-            prior_auth_required=parse_bool(r["prior_auth_required"]),
-            cost_share_pct=int(r["cost_share_pct"]),
-            copay=int(r["copay"]),
-            notes=r["notes"],
-        )
-        for r in _rows("coverage_rules.csv")
-    )
+    rules = _rules_client().fetch_all()
     _assert_grid(rules)
     return rules
 
 
 def _assert_grid(rules: tuple[CoverageRule, ...]) -> None:
-    """The 20x4 grid is total. Lookup relies on it, so fail loudly at load."""
+    """The 20x4 grid is total. Lookup relies on it, so fail loudly at load.
+
+    This runs against whichever backend served the rows, so a BigQuery table that
+    is stale, filtered, or pointed at the wrong dataset fails here rather than
+    surfacing as a KeyError mid-demo.
+    """
     codes = {r.cpt_code for r in rules}
     if len(rules) != 80 or len({(r.plan_type, r.cpt_code) for r in rules}) != 80:
         raise AssertionError(f"expected 80 unique (plan, code) rules, got {len(rules)}")
@@ -72,39 +69,12 @@ def _assert_grid(rules: tuple[CoverageRule, ...]) -> None:
 
 @lru_cache(maxsize=1)
 def load_members() -> dict[str, Member]:
-    return {
-        r["member_id"]: Member(
-            member_id=r["member_id"],
-            first_name=r["first_name"],
-            last_name=r["last_name"],
-            plan_type=r["plan_type"],
-            pcp_id=r["pcp_id"],
-            city=r["city"],
-            state=r["state"],
-            lat=float(r["lat"]),
-            lon=float(r["lon"]),
-            language_preference=r["language_preference"],
-        )
-        for r in _rows("members.csv")
-    }
+    return _members_client().fetch_all()
 
 
 @lru_cache(maxsize=1)
 def load_providers() -> dict[str, Provider]:
-    return {
-        r["provider_id"]: Provider(
-            provider_id=r["provider_id"],
-            name=r["name"],
-            specialty=r["specialty"],
-            city=r["city"],
-            state=r["state"],
-            phone=r["phone"],
-            network_status=r["network_status"],
-            accepting_new_patients=parse_bool(r["accepting_new_patients"]),
-            hospital_affiliation=r["hospital_affiliation"],
-        )
-        for r in _rows("providers.csv")
-    }
+    return _providers_client().fetch_all()
 
 
 @lru_cache(maxsize=1)
@@ -117,3 +87,39 @@ def rule_index() -> dict[tuple[str, str], CoverageRule]:
 def descriptions() -> dict[str, str]:
     """cpt_code -> canonical description (identical across all 4 plans)."""
     return {r.cpt_code: r.cpt_description for r in load_rules()}
+
+
+def data_source() -> str:
+    """Which backend actually served the coverage rules: csv | bigquery | csv_fallback.
+
+    Reported on every answer, so a fallback is visible rather than silent.
+    """
+    return _rules_client().source
+
+
+def reset_cache() -> None:
+    """Drop every cached client and table. For tests and post-config-change reloads."""
+    for fn in (
+        _rules_client,
+        _members_client,
+        _providers_client,
+        load_rules,
+        load_members,
+        load_providers,
+        rule_index,
+        descriptions,
+    ):
+        fn.cache_clear()
+
+
+__all__ = [
+    "DATASETS",
+    "data_source",
+    "descriptions",
+    "load_members",
+    "load_providers",
+    "load_rules",
+    "parse_bool",
+    "reset_cache",
+    "rule_index",
+]

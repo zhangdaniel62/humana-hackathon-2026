@@ -8,8 +8,9 @@ the model.**
 
 ```bash
 cd src/backend
-uv sync
-uv run pytest                      # 47 tests, no network, <1s
+uv sync                            # core only; CSV-backed
+uv sync --extra bigquery           # adds pandas + google-cloud-bigquery
+uv run pytest                      # 82 tests, no network, ~1s
 uv run python -m benefits.dev_cli --demo
 uv run python -m benefits.dev_cli --member MBR00183 --json "colonoscopy"
 ```
@@ -17,6 +18,53 @@ uv run python -m benefits.dev_cli --member MBR00183 --json "colonoscopy"
 The CLI and the whole deterministic core run with **no API key and no network**.
 Only `benefits.agent` needs Gemini, and that runs in the GADK environment
 (`.env.example` lists the variables it expects).
+
+## Data source: CSV or BigQuery
+
+`BENEFITS_DATA_SOURCE` selects the backend. Everything above the client layer —
+`kb.py`, `providers.py`, `answer.py` — is backend-agnostic and never sees a
+DataFrame.
+
+```bash
+BENEFITS_DATA_SOURCE=csv           # default: no creds, no network, cannot fail
+BENEFITS_DATA_SOURCE=bigquery
+BENEFITS_BQ_PROJECT=your-project   # required when bigquery is selected
+BENEFITS_BQ_DATASET=your_dataset
+```
+
+Three protocols, two implementations each (`benefits/clients/`):
+
+| Protocol | CSV | BigQuery |
+|---|---|---|
+| `CoverageRulesClient` | `CsvCoverageRulesClient` | `BigQueryCoverageRulesClient` |
+| `MemberRecordsClient` | `CsvMemberRecordsClient` | `BigQueryMemberRecordsClient` |
+| `ProviderDirectoryClient` | `CsvProviderDirectoryClient` | `BigQueryProviderDirectoryClient` |
+
+```python
+from benefits import get_coverage_rules_client
+rules = get_coverage_rules_client().fetch_all()   # honours the toggle
+```
+
+**The BigQuery clients pull each whole table into a DataFrame once, at init.**
+That's appropriate rather than lazy: the three tables are 80, 200 and 50 rows, so
+the entire dataset is a few hundred rows. Eager loading means zero per-query
+latency, no round-trip inside the request path, and no partial-failure states
+mid-conversation.
+
+**Fallback is automatic and never silent.** If BigQuery can't be reached at
+startup — no creds, bad table, extra not installed — the factory logs a warning
+and returns the CSV client. The answer stays correct because the CSVs hold the
+same data, and every answer reports which backend served it via
+`BenefitsAnswer.data_source` (`csv` | `bigquery` | `csv_fallback`). Set
+`BENEFITS_BIGQUERY_FALLBACK_TO_CSV=false` to fail loudly instead.
+
+`pandas` and `google-cloud-bigquery` are an **optional extra**, imported lazily.
+`import benefits` pulls in neither them nor ADK, so the deterministic core still
+runs on a machine that has only the CSVs.
+
+The grid assertion (80 rules = 20 CPTs × 4 plans) runs against **whichever**
+backend served the rows, so a stale or mis-pointed BigQuery table fails at
+startup rather than surfacing as a `KeyError` mid-demo.
 
 ## The design in one line
 
@@ -76,6 +124,7 @@ from the CSV, so it never passes through the model:
   "next_step": "...",
   "providers": [{"name": "...", "specialty": "...", "city": "...", "phone": "...", "is_pcp": true}],
   "grounded_on": ["RULE0070"],
+  "data_source": "csv",
   "plan_type": "MAPD",
   "cpt_code": "45378",
   "language": "Spanish",

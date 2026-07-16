@@ -161,6 +161,9 @@ class BenefitsAnswer(BaseModel):
     next_step: str = ""
     providers: list[ProviderMatch] = Field(default_factory=list)
     grounded_on: list[str] = Field(default_factory=list)  # rule_ids
+    #: Which backend served the coverage rules: csv | bigquery | csv_fallback.
+    #: Part of the grounding story -- a fallback is reported, never silent.
+    data_source: str = "csv"
     plan_type: str | None = None
     cpt_code: str | None = None
     language: str = "English"

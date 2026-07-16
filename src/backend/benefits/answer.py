@@ -12,7 +12,7 @@ module, not the least. If Gemini is unavailable the demo still works.
 from .contract import roi_permits_detail
 from .cost import cost_breakdown
 from .kb import CsvBenefitsKB, rules_agree
-from .loader import load_members
+from .loader import data_source, load_members
 from .models import BenefitsAnswer, CoverageRule, Resolution, display_name
 from .providers import find_provider
 
@@ -174,6 +174,7 @@ def answer_benefits_question(
         next_step=_next_step(rule, providers),
         providers=providers.providers if providers else [],
         grounded_on=[r.rule_id for r in result.rules],
+        data_source=data_source(),
         plan_type=rule.plan_type,
         cpt_code=rule.cpt_code,
         language=language,
