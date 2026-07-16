@@ -38,8 +38,8 @@ from benefits.settings import Settings
 
 pd = pytest.importorskip("pandas")
 
-# tests -> backend -> src -> repo root
-DATASETS = Path(__file__).resolve().parents[3] / "datasets"
+# tests -> backend -> repo root
+DATASETS = Path(__file__).resolve().parents[2] / "datasets"
 
 # Columns BigQuery would hand back as native types rather than strings.
 _BOOL_COLS = {"covered", "prior_auth_required", "accepting_new_patients"}
