@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Claim Assist — Voice Demo</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; }
+  button { font-size: 1rem; padding: 0.5rem 1.25rem; margin-right: 0.5rem; }
+  #status { color: #555; margin: 0.75rem 0; }
+  #transcript { border: 1px solid #ddd; border-radius: 8px; padding: 0.75rem; min-height: 12rem; }
+  .line { margin: 0.35rem 0; }
+  .you .who { color: #0b57d0; font-weight: 600; }
+  .agent .who { color: #146c2e; font-weight: 600; }
+  #typed { width: 70%; padding: 0.4rem; }
+</style>
+</head>
+<body>
+<h1>Claim Assist — Voice Demo</h1>
+<p>Click <b>Start call</b>, allow microphone access, and speak. Try asking about a claim by its claim ID.</p>
+<button id="start">Start call</button>
+<button id="stop" disabled>End call</button>
+<div id="status">Idle.</div>
+<div id="transcript"></div>
+<p>
+  <input id="typed" placeholder="Or type a message instead of speaking" />
+  <button id="send" disabled>Send</button>
+</p>
+
+<script>
+const statusEl = document.getElementById('status');
+const transcriptEl = document.getElementById('transcript');
+const startBtn = document.getElementById('start');
+const stopBtn = document.getElementById('stop');
+const sendBtn = document.getElementById('send');
+const typedEl = document.getElementById('typed');
+
+const TARGET_RATE = 16000;
+const PLAYBACK_RATE = 24000;
+
+let ws = null, micCtx = null, playCtx = null, mediaStream = null;
+let playingSources = [], nextStartTime = 0;
+let lastLine = { role: null, el: null };
+
+const WORKLET_SRC = `
+class MicCapture extends AudioWorkletProcessor {
+  constructor() { super(); this.buf = []; this.len = 0; }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (ch) {
+      this.buf.push(new Float32Array(ch));
+      this.len += ch.length;
+      if (this.len >= 2048) {
+        const all = new Float32Array(this.len);
+        let o = 0;
+        for (const b of this.buf) { all.set(b, o); o += b.length; }
+        this.port.postMessage(all, [all.buffer]);
+        this.buf = []; this.len = 0;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('mic-capture', MicCapture);
+`;
+
+function setStatus(text) { statusEl.textContent = text; }
+
+function appendTranscript(role, text) {
+  if (lastLine.role === role && lastLine.el) {
+    lastLine.el.querySelector('.text').textContent += text;
+  } else {
+    const div = document.createElement('div');
+    div.className = 'line ' + role;
+    div.innerHTML = '<span class="who"></span> <span class="text"></span>';
+    div.querySelector('.who').textContent = role === 'you' ? 'You:' : 'Agent:';
+    div.querySelector('.text').textContent = text;
+    transcriptEl.appendChild(div);
+    lastLine = { role, el: div };
+  }
+  transcriptEl.scrollTop = transcriptEl.scrollHeight;
+}
+
+function downsampleToPcm16(float32, inRate) {
+  const ratio = inRate / TARGET_RATE;
+  const outLen = Math.floor(float32.length / ratio);
+  const out = new Int16Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const s = Math.max(-1, Math.min(1, float32[Math.floor(i * ratio)]));
+    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  return out.buffer;
+}
+
+function playPcm16(arrayBuffer) {
+  if (!playCtx) playCtx = new AudioContext({ sampleRate: PLAYBACK_RATE });
+  const int16 = new Int16Array(arrayBuffer);
+  if (!int16.length) return;
+  const buffer = playCtx.createBuffer(1, int16.length, PLAYBACK_RATE);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < int16.length; i++) data[i] = int16[i] / 32768;
+  const source = playCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(playCtx.destination);
+  const at = Math.max(playCtx.currentTime, nextStartTime);
+  source.start(at);
+  nextStartTime = at + buffer.duration;
+  playingSources.push(source);
+  source.onended = () => { playingSources = playingSources.filter(s => s !== source); };
+}
+
+function stopPlayback() {
+  for (const s of playingSources) { try { s.stop(); } catch (_) {} }
+  playingSources = [];
+  nextStartTime = 0;
+}
+
+async function startCall() {
+  startBtn.disabled = true;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/voice`);
+  ws.binaryType = 'arraybuffer';
+
+  ws.onmessage = (e) => {
+    if (e.data instanceof ArrayBuffer) { playPcm16(e.data); return; }
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'user_transcript') appendTranscript('you', msg.text);
+    else if (msg.type === 'agent_transcript') appendTranscript('agent', msg.text);
+    else if (msg.type === 'interrupted') stopPlayback();
+    else if (msg.type === 'turn_complete') lastLine = { role: null, el: null };
+  };
+  ws.onclose = () => endCall();
+  ws.onerror = () => setStatus('WebSocket error — is the server running?');
+
+  await new Promise((resolve, reject) => {
+    ws.onopen = resolve;
+    ws.addEventListener('close', reject, { once: true });
+  }).catch(() => { throw new Error('could not connect'); });
+
+  mediaStream = await navigator.mediaDevices.getUserMedia({
+    audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+  });
+  micCtx = new AudioContext();
+  const workletUrl = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+  await micCtx.audioWorklet.addModule(workletUrl);
+  const source = micCtx.createMediaStreamSource(mediaStream);
+  const capture = new AudioWorkletNode(micCtx, 'mic-capture');
+  capture.port.onmessage = (e) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(downsampleToPcm16(e.data, micCtx.sampleRate));
+    }
+  };
+  source.connect(capture);
+
+  stopBtn.disabled = false;
+  sendBtn.disabled = false;
+  setStatus('Live — speak now.');
+}
+
+function endCall() {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+  ws = null;
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  if (micCtx) { micCtx.close(); micCtx = null; }
+  stopPlayback();
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  sendBtn.disabled = true;
+  setStatus('Call ended.');
+}
+
+startBtn.onclick = () => startCall().catch((err) => {
+  setStatus('Failed to start: ' + err.message);
+  startBtn.disabled = false;
+});
+stopBtn.onclick = endCall;
+sendBtn.onclick = () => {
+  const text = typedEl.value.trim();
+  if (text && ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'text', text }));
+    appendTranscript('you', text);
+    lastLine = { role: null, el: null };
+    typedEl.value = '';
+  }
+};
+typedEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendBtn.onclick(); });
+</script>
+</body>
+</html>
