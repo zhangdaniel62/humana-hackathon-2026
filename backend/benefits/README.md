@@ -7,7 +7,7 @@ the model.**
 ## Run it
 
 ```bash
-cd src/backend
+cd backend
 uv sync                            # core only; CSV-backed
 uv sync --extra bigquery           # adds pandas + google-cloud-bigquery
 uv run pytest                      # 82 tests, no network, ~1s
