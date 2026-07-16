@@ -13,14 +13,21 @@ import os
 
 from google.adk.agents import LlmAgent
 
-
 from .prompts import SYSTEM_PROMPT
 from .tools import find_provider, lookup_coverage
 
-# benefits_agent/agent.py
-from src.agents.benefits_qa import build_agent  # or however yours is constructed
+from google.adk import Agent
 
-root_agent = build_agent()
+from .answer import answer_benefits_question 
+
+# Define your root agent directly here
+root_agent = Agent(
+    name="benefits_agent",
+    model="gemini-2.5-flash",
+    instruction="You are a helpful benefits assistant...",
+    # If your agent uses a function/workflow to answer questions:
+    tools=[answer_benefits_question]
+)
 
 MODEL = os.getenv("BENEFITS_MODEL", "gemini-flash-latest")
 
@@ -31,6 +38,7 @@ DESCRIPTION = (
 
 
 def build_agent(model: str | None = None) -> LlmAgent:
+    Settings : settings
     return LlmAgent(
         model=model or MODEL,
         name="benefits_qa",
