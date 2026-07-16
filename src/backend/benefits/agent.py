@@ -13,8 +13,14 @@ import os
 
 from google.adk.agents import LlmAgent
 
+
 from .prompts import SYSTEM_PROMPT
 from .tools import find_provider, lookup_coverage
+
+# benefits_agent/agent.py
+from src.agents.benefits_qa import build_agent  # or however yours is constructed
+
+root_agent = build_agent()
 
 MODEL = os.getenv("BENEFITS_MODEL", "gemini-flash-latest")
 

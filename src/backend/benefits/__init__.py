@@ -27,6 +27,7 @@ from .loader import data_source
 from .models import BenefitsAnswer, CostBreakdown, ProviderResult, Resolution
 from .providers import find_provider
 from .settings import Settings, get_settings
+from . import agent
 
 __all__ = [
     "AGENT_KEY",
