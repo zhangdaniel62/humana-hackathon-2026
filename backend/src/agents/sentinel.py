@@ -1,3 +1,101 @@
+"""
+Sentinel integration contract.
+
+Purpose:
+Sentinel is an asynchronous operational/compliance monitor. It must never sit
+in the member-response path and must never generate member-facing answers.
+
+Runtime requirements:
+- The application must create exactly one shared EventLog.
+- SentinelAgent and every event-producing agent must use that same EventLog.
+- Start Sentinel during FastAPI/ADK application startup.
+- Stop Sentinel during application shutdown.
+- Agents should publish events with event_log.publish_nowait(...).
+- Agents must not create separate EventLog instances.
+
+Events expected from other agents:
+
+1. Claim Story Agent
+   event_type: EventType.DENIAL_EXPLAINED
+   required:
+       session_id
+       member_id
+       claim_id
+   payload:
+       denial_code
+       cause_category
+       denial_reason (optional)
+       provider_id (optional)
+
+2. ROI Gatekeeper
+   event_type: EventType.ROI_GAP_DETECTED
+   required:
+       session_id
+       member_id
+   payload:
+       roi_status
+       caller_identity (synthetic identifier only)
+       reason
+
+3. Benefits Q&A Agent
+   event_type: EventType.COVERAGE_QUESTION_ANSWERED
+   required:
+       session_id
+       member_id
+   payload:
+       cpt_code
+       covered
+       prior_auth_required
+       grounded_on
+
+4. Orchestrator session start
+   event_type: EventType.SESSION_STARTED
+   required:
+       session_id
+       member_id when known
+   payload:
+       intent (optional)
+
+5. Orchestrator session completion
+   event_type: EventType.SESSION_COMPLETED
+   required:
+       session_id
+   payload:
+       duration_seconds
+       resolved
+       repeat_contact
+       human_escalation
+       preventable_denial_caught
+
+6. Any agent requiring human review
+   event_type: EventType.ESCALATION_TRIGGERED
+   payload:
+       reason
+       severity
+       recommended_action
+
+7. Compliance-data ingestion
+   event_type: EventType.COMPLIANCE_FLAG_DETECTED
+   payload:
+       flag_type
+       severity
+       entity_type
+       entity_id
+       description
+       recommended_action
+
+Detection requirements:
+- Denial-spike detection needs denial_code or cause_category.
+- Repeat-contact detection needs member_id and claim_id across different sessions.
+- ROI-frequency detection works best when SESSION_STARTED events are also emitted.
+- Operational metrics require valid SESSION_COMPLETED events.
+- All event timestamps must be timezone-aware.
+- All identifiers and data must be synthetic; never include real PHI.
+
+Frontend contract:
+The frontend/dashboard should read sentinel.snapshot() through a read-only API.
+The frontend must not modify Sentinel's internal state.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -18,7 +116,6 @@ from ..models import (
     SentinelSnapshot,
 )
 from ..settings import SentinelSettings
-
 
 class SentinelAgent:
     """Consumes agent events asynchronously and maintains explainable risk alerts."""
