@@ -9,6 +9,9 @@ from src.clients.claims import (
     BigQueryClaimsRepository,
     ClaimDataIntegrityError,
     ClaimsRepositoryError,
+    CsvClaimsRepository,
+    FallbackClaimsRepository,
+    create_claims_repository,
 )
 from src.settings import Settings
 from tests.claim_fixtures import claim_for_status
@@ -110,6 +113,35 @@ class BigQueryClaimsRepositoryTests(unittest.TestCase):
                 build_test_settings(bigquery_dataset="bad-dataset"),
                 client=MagicMock(),
             )
+
+
+class OfflineClaimsRepositoryTests(unittest.TestCase):
+    def test_csv_repository_returns_exact_synthetic_claim(self) -> None:
+        claim = CsvClaimsRepository().get_claim("CLM000377")
+
+        self.assertIsNotNone(claim)
+        assert claim is not None
+        self.assertEqual("MBR00087", claim.member_id)
+
+    def test_fallback_repository_uses_csv_when_primary_fails(self) -> None:
+        primary = MagicMock()
+        primary.get_claim.side_effect = ClaimsRepositoryError("offline")
+
+        claim = FallbackClaimsRepository(
+            primary,
+            CsvClaimsRepository(),
+        ).get_claim("CLM000377")
+
+        self.assertIsNotNone(claim)
+
+    def test_factory_uses_csv_when_bigquery_client_cannot_initialize(self) -> None:
+        with patch(
+            "src.clients.claims.bigquery.Client",
+            side_effect=RuntimeError("no credentials"),
+        ):
+            repository = create_claims_repository(build_test_settings())
+
+        self.assertIsInstance(repository, CsvClaimsRepository)
 
 
 if __name__ == "__main__":

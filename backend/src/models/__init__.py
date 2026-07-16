@@ -12,6 +12,17 @@ from .claims import (
     DenialDetails,
     GroundingReference,
 )
+from .readiness import (
+    ClaimReadinessAssessment,
+    ClaimReadinessRequest,
+    ClaimReadinessResult,
+    ClaimReadinessResultStatus,
+    ClaimReadinessRiskBand,
+    DataCompleteness,
+    ReadinessFactor,
+    ReadinessFactorSeverity,
+)
+from .roi import ROICheckResult, ROIStatus
 from .sentinel import (
     AgentEvent,
     AlertSeverity,
@@ -22,12 +33,18 @@ from .sentinel import (
     SentinelAlert,
     SentinelSnapshot,
 )
+from .session import MemberSessionContext
 
 __all__ = [
     "AgentEvent",
     "AlertSeverity",
     "AlertType",
     "ClaimRow",
+    "ClaimReadinessAssessment",
+    "ClaimReadinessRequest",
+    "ClaimReadinessResult",
+    "ClaimReadinessResultStatus",
+    "ClaimReadinessRiskBand",
     "ClaimStatus",
     "ClaimStory",
     "ClaimStoryRequest",
@@ -35,11 +52,17 @@ __all__ = [
     "ClaimStoryResultStatus",
     "ClaimTimelineEvent",
     "ClaimTimelineEventType",
+    "DataCompleteness",
     "DenialDetails",
     "EventType",
     "GroundingReference",
     "MetricsBaseline",
     "MetricsSnapshot",
+    "MemberSessionContext",
+    "ReadinessFactor",
+    "ReadinessFactorSeverity",
+    "ROICheckResult",
+    "ROIStatus",
     "SentinelAlert",
     "SentinelSnapshot",
 ]

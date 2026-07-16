@@ -100,7 +100,7 @@ def drain() -> list[dict[str, Any]]:
 
 DataSource = Literal["csv", "bigquery"]
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
@@ -1499,8 +1499,11 @@ def lookup_coverage(service_query: str, tool_context: ToolContext) -> dict[str, 
         `answer_text`, and the grounded facts: covered, prior_auth_required,
         cost, next_step, providers, grounded_on, plan_type.
     """
+    from .session_context import record_intent
+
+    record_intent(tool_context.state, AGENT_KEY)
     member_id = tool_context.state.get(StateKeys.SUBJECT_MEMBER_ID)
-    roi_status = tool_context.state.get(StateKeys.ROI_STATUS, "not_required")
+    roi_status = tool_context.state.get(StateKeys.ROI_STATUS)
 
     if not member_id:
         return {
@@ -1558,9 +1561,14 @@ def find_provider_tool(service_or_cpt: str, tool_context: ToolContext) -> dict[s
         dict with `status`, `providers` (never empty), `basis` describing which
         fallback was used, `specialty_availability`, and a `note` to relay.
     """
+    from .session_context import record_intent, roi_blocked_payload
+
+    record_intent(tool_context.state, "provider_directory")
     member_id = tool_context.state.get(StateKeys.SUBJECT_MEMBER_ID)
     if not member_id:
         return {"status": "no_member", "providers": []}
+    if not roi_permits_detail(tool_context.state.get(StateKeys.ROI_STATUS)):
+        return roi_blocked_payload(tool_context.state)
 
     result = find_provider(service_or_cpt, member_id)
 

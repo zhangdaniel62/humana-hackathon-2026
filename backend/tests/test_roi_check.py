@@ -45,7 +45,7 @@ def test_not_required_when_caller_is_member(client):
 
 def test_missing_expired(client):
     r = check_roi_authorization("MBR00002", "Jennifer Saunders", client=client, today=TODAY)
-    assert r.status == ROIStatus.MISSING
+    assert r.status == ROIStatus.EXPIRED
     assert r.reason == "expired"
 
 
@@ -62,7 +62,7 @@ def test_missing_no_authorization_on_file(client):
 
 def test_unknown_member_when_no_records(client):
     r = check_roi_authorization("MBR99999", "Anyone", client=client, today=TODAY)
-    assert r.status == ROIStatus.MISSING
+    assert r.status == ROIStatus.UNKNOWN
     assert r.reason == "unknown_member"
 
 

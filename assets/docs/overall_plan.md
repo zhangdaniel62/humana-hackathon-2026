@@ -18,13 +18,13 @@ feature. Status reflects the current repository, not the target architecture.
 
 | Area | Status | Implemented now | Work remaining | Roadmap |
 |---|---|---|---|---|
-| FastAPI and ADK platform | **Implemented** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/voice`, and `/demo` are mounted. | Preserve the existing surface while adding new tools and read-only APIs. | Foundation |
-| Live voice and typed fallback | **Implemented baseline** | Continuous browser audio, transcripts, interruption handling, spoken replies, and typed input work. | Add structured result cards; React parity is optional stretch work. | Features 6, 8, 12 |
-| Claim Story | **Implemented** | Exact BigQuery lookup, deterministic timeline and denial guidance, grounding, confidence handling, escalation, and tests exist. | Integrate with unified ROI/session handling and shared events. | Features 3–5 |
-| Benefits Q&A | **Implemented standalone** | Deterministic coverage, prior authorization, cost, provider guidance, CSV/BigQuery clients, ROI refusal, and tests exist. | Attach it to the shared orchestrator and session context. | Feature 4 |
-| ROI controls | **Partially implemented** | Benefits already fails closed when `roi_status` is not valid. | Establish ROI once per session and apply it consistently to every specialist. | Feature 3 |
-| Shared orchestrator | **Partially implemented** | The root agent currently supports grounded claim lookup through voice and text. | Add Claim Readiness, Benefits Q&A, shared context, ROI enforcement, and standardized routing. | Features 2–4 |
-| Claim Readiness | **Not started** | Required claim fields and suitable synthetic examples already exist. | Build and test the deterministic readiness service, then expose it as an ADK tool. | Features 1–2 |
+| FastAPI and ADK platform | **Implemented** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/voice`, and `/demo` are mounted; health, app discovery, route mounting, and offline startup were terminal-verified. | Preserve the existing surface while adding later read-only APIs. | Foundation |
+| Live voice and typed fallback | **Implemented baseline** | Continuous browser audio, transcripts, interruption handling, spoken replies, and typed input remain wired to the shared root-agent factory. Credentialed ADK text turns were verified against Vertex AI for ROI, Claim Story, Benefits, provider guidance, ambiguity, and Claim Readiness tool selection. | A real microphone-to-live-model call remains an environment check; structured result cards and React parity are later UI work. | Features 6, 8, 12 |
+| Claim Story | **Implemented and integrated** | Exact BigQuery lookup with synthetic CSV fallback, deterministic timeline and denial guidance, grounding, confidence handling, escalation, shared findings, ROI enforcement, and tests exist. | Add shared prevention events only in the later event-contract feature. | Features 3–5 |
+| Benefits Q&A | **Implemented and integrated** | Deterministic coverage, prior authorization, cost, provider guidance, CSV/BigQuery clients, ambiguity handling, ROI refusal, shared findings, and orchestrator routing are verified. | Add later structured API/UI projections without changing benefit facts. | Feature 4 |
+| ROI controls | **Implemented through MVP checkpoint** | One shared session context resolves verified, not-required, missing, expired, and unknown ROI; all member-specific tools fail closed and ROI-gap/session-start events are typed and tested. | Production identity proofing and authorization submission remain future work. | Feature 3 |
+| Shared orchestrator | **Implemented through Claim Readiness** | The root agent routes ROI, Claim Story, Benefits Q&A, provider guidance, and Claim Readiness for voice and text while preserving language, intent history, and structured findings across turns. | Later event, summary-API, notification, Sentinel, and UI work remains intentionally out of scope for this checkpoint. | Features 2–4 |
+| Claim Readiness | **Implemented through orchestrator tool** | Validated request/result models, exact-claim service, Pending/In Review eligibility, reviewed prior-authorization and referral rules, completeness handling, synthetic labeling, grounding, ROI enforcement, shared findings, and focused tests exist. | Prevention events and notification previews remain later independent features. | Features 1–2 |
 | Prevention events | **Not started** | A typed append-only event system already exists. | Add readiness and intervention event types with auditable evidence. | Feature 5 |
 | Structured session-summary API | **Not started** | Specialist results can already be stored in ADK session state. | Add a validated read-only projection for claim, benefit, ROI, and readiness findings. | Feature 6 |
 | Metrics methodology | **Partially implemented** | Sentinel calculates AHT, FCR, repeat contacts, escalation, and a baseline comparison. | Add labeled assumptions and replace unsupported prevention claims with corrective interventions recorded. | Feature 7 |
@@ -34,8 +34,10 @@ feature. Status reflects the current repository, not the target architecture.
 | Expanded golden path | **Not assembled** | Individual Claim Story, Benefits, Sentinel, and voice components can already be demonstrated separately. | Connect the completed features into one repeatable, fallback-safe presentation. | Feature 11 |
 | React caller and dashboard UI | **Not started / stretch** | The static `/demo` page is the working audio reference. | Build only after the backend critical path is stable; retain `/demo` and Streamlit fallbacks. | Feature 12 |
 
-Current verified baseline: **116 tests passed, 2 skipped, and 216 subtests
-passed** before implementation of the remaining roadmap features.
+Current verified backend checkpoint: **148 tests passed, 2 skipped, and 216
+subtests passed**. At user direction, this checkpoint was verified through
+terminal tests and FastAPI/application smoke checks while the frontend is being
+implemented separately.
 
 ## 1. Target outcome
 

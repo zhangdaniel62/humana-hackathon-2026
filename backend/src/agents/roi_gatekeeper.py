@@ -28,9 +28,9 @@ SELF_SERVICE_PATH = (
 
 def _default_client() -> MemberRecordsClient:
     # Imported/constructed lazily so importing this module never requires a .env.
-    from src.clients.member_records import BigQueryMemberRecordsClient
+    from src.clients.member_records import create_member_records_client
 
-    return BigQueryMemberRecordsClient()
+    return create_member_records_client()
 
 
 def _is_valid(auth, today: date) -> bool:
@@ -83,10 +83,10 @@ def check_roi_authorization(
 
     auths = client.get_authorizations(subject_member_id)
 
-    # No authorization record at all for this member -> can't verify, route to a human.
+    # No authorization record at all for this member -> unknown, fail closed.
     if not auths:
         return ROICheckResult(
-            status=ROIStatus.MISSING,
+            status=ROIStatus.UNKNOWN,
             subject_member_id=subject_member_id,
             caller_name=caller_name,
             reason="unknown_member",
@@ -120,7 +120,7 @@ def check_roi_authorization(
         expired = next((a for a in matching if a.auth_expired or a.expiration_date), matching[0])
         reason = "expired" if (expired.auth_expired or expired.expiration_date) else "not_on_file"
         return ROICheckResult(
-            status=ROIStatus.MISSING,
+            status=ROIStatus.EXPIRED if reason == "expired" else ROIStatus.MISSING,
             subject_member_id=subject_member_id,
             caller_name=caller_name,
             matched_auth_id=expired.auth_id,
@@ -159,7 +159,8 @@ def roi_gate(subject_member_id: str, caller_name: str, tool_context) -> dict:
         caller_name: Full name of the person on the phone (e.g. "Amanda Conner").
 
     Returns:
-        A structured result with `status` (verified | missing | not_required),
+        A structured result with `status` (verified | missing | expired |
+        not_required | unknown),
         the reason, any matched authorization, and a member-facing `message`.
     """
     # caller_id comes from the authenticated session, NOT the LLM, so identity can't be spoofed.
@@ -171,23 +172,18 @@ def roi_gate(subject_member_id: str, caller_name: str, tool_context) -> dict:
     tool_context.state["roi_finding"] = result.model_dump()
 
     session_id = str(tool_context.state.get("session_id", "unknown"))
-    if result.status == ROIStatus.MISSING:
+    if result.status not in {ROIStatus.VERIFIED, ROIStatus.NOT_REQUIRED}:
         event_log.emit(
             session_id=session_id,
             agent="roi_gatekeeper",
             event_type="roi_gap_detected",
+            member_id=subject_member_id,
             payload={
-                "subject_member_id": subject_member_id,
                 "caller_name": caller_name,
+                "roi_status": result.status.value,
                 "reason": result.reason,
+                "synthetic": True,
             },
-        )
-    elif result.status == ROIStatus.VERIFIED:
-        event_log.emit(
-            session_id=session_id,
-            agent="roi_gatekeeper",
-            event_type="roi_verified",
-            payload={"subject_member_id": subject_member_id, "auth_id": result.matched_auth_id},
         )
 
     return result.model_dump()
@@ -205,16 +201,17 @@ Your ONLY job here is the privacy check: whether the caller may discuss a member
 Hard rules (never break):
 - ALWAYS get the answer from the `roi_gate` tool. NEVER decide authorization yourself and
   NEVER invent or reveal any member details (claims, diagnoses, coverage, etc.).
-- When authorization is missing, be empathetic but firm: you can't share member details,
-  and you offer the self-service path from the tool's `message` as the helpful next step.
+- When authorization is missing, expired, or unknown, be empathetic but firm:
+  you can't share member details, and you offer the approved next step from the
+  tool's `message`.
 - If a caller pushes for member info they're not authorized for, gently hold the line.
 
 Tone by outcome:
 - verified: greet them warmly by first name, confirm you've got them verified, and invite
   their next question.
 - not_required: reassure them that, as the member, they don't need any extra authorization.
-- missing: open with a warm acknowledgement, kindly explain you're unable to share account
-  details right now, then offer the self-service path as an easy fix and reassurance.
+- missing, expired, or unknown: open with a warm acknowledgement, kindly explain
+  you're unable to share account details right now, then offer the approved next step.
 """
 
 ROI_INSTRUCTION = (

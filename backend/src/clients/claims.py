@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import csv
 import re
+from pathlib import Path
 from typing import Any, Protocol
 
 from google.cloud import bigquery
@@ -53,6 +55,55 @@ class ClaimsRepository(Protocol):
 
     def get_claim(self, claim_id: str) -> ClaimRow | None:
         """Return the exact claim or ``None`` when it does not exist."""
+
+
+class CsvClaimsRepository:
+    """Exact-claim repository backed by the synthetic CSV fallback."""
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or (
+            Path(__file__).resolve().parents[3] / "datasets" / "claims.csv"
+        )
+        self._claims: dict[str, ClaimRow] | None = None
+
+    def get_claim(self, claim_id: str) -> ClaimRow | None:
+        if self._claims is None:
+            self._claims = self._load()
+        return self._claims.get(claim_id)
+
+    def _load(self) -> dict[str, ClaimRow]:
+        claims: dict[str, ClaimRow] = {}
+        with self.path.open(newline="", encoding="utf-8") as claim_file:
+            for row in csv.DictReader(claim_file):
+                normalized = {
+                    key: value if value != "" else None
+                    for key, value in row.items()
+                }
+                claim = ClaimRow.model_validate(normalized)
+                if claim.claim_id in claims:
+                    raise ClaimDataIntegrityError(
+                        f"Duplicate claim ID {claim.claim_id} in {self.path}"
+                    )
+                claims[claim.claim_id] = claim
+        return claims
+
+
+class FallbackClaimsRepository:
+    """Use BigQuery first and the synthetic CSV only when it is unavailable."""
+
+    def __init__(
+        self,
+        primary: ClaimsRepository,
+        fallback: ClaimsRepository,
+    ) -> None:
+        self.primary = primary
+        self.fallback = fallback
+
+    def get_claim(self, claim_id: str) -> ClaimRow | None:
+        try:
+            return self.primary.get_claim(claim_id)
+        except ClaimsRepositoryError:
+            return self.fallback.get_claim(claim_id)
 
 
 class BigQueryClaimsRepository:
@@ -128,3 +179,14 @@ class BigQueryClaimsRepository:
             raise ValueError("google_cloud_project is not a valid table identifier")
         if not _DATASET_PATTERN.fullmatch(self.settings.bigquery_dataset):
             raise ValueError("bigquery_dataset is not a valid table identifier")
+
+
+def create_claims_repository(settings: Settings) -> ClaimsRepository:
+    """Build the live repository with a deterministic offline fallback."""
+
+    fallback = CsvClaimsRepository()
+    try:
+        primary = BigQueryClaimsRepository(settings)
+    except Exception:
+        return fallback
+    return FallbackClaimsRepository(primary, fallback)

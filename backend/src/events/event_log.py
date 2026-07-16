@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from typing import Any
 
-from ..models import AgentEvent
+from ..models import AgentEvent, EventType
 
 
 class EventSubscription:
@@ -78,6 +79,38 @@ class EventLog:
 
     async def publish(self, event: AgentEvent) -> None:
         self.publish_nowait(event)
+
+    def emit(
+        self,
+        *,
+        session_id: str,
+        agent: str,
+        event_type: EventType | str,
+        payload: dict[str, Any] | None = None,
+        member_id: str | None = None,
+        claim_id: str | None = None,
+    ) -> AgentEvent:
+        """Create and publish one typed event without blocking the caller path."""
+
+        event = AgentEvent(
+            session_id=session_id,
+            agent=agent,
+            event_type=event_type,
+            member_id=member_id,
+            claim_id=claim_id,
+            payload=payload or {},
+        )
+        self.publish_nowait(event)
+        return event
+
+    def all(self) -> list[AgentEvent]:
+        return list(self._events)
+
+    def of_type(self, event_type: EventType | str) -> list[AgentEvent]:
+        return [event for event in self._events if event.event_type == event_type]
+
+    def clear(self) -> None:
+        self._events.clear()
 
     def _put_without_blocking(
         self,

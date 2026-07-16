@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from backend.src.agents import benefits as agent_mod
-from backend.src.agents.benefits import (
+from src.agents import benefits as agent_mod
+from src.agents.benefits import (
     FALLBACK_SOURCE,
     BigQueryCoverageRulesClient,
     BigQueryMemberRecordsClient,
@@ -360,7 +360,7 @@ def test_grid_assert_runs_against_bigquery_rows(bq_settings, monkeypatch, fake_b
 
 
 def test_answer_reports_its_data_source():
-    from backend.src.agents.benefits import answer_benefits_question
+    from src.agents.benefits import answer_benefits_question
 
     a = answer_benefits_question("colonoscopy", member_id="MBR00183")
     assert a.data_source == "csv"

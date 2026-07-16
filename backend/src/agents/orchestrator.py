@@ -1,34 +1,68 @@
-"""Voice-facing ADK root agent for the browser-mic call flow."""
+"""Shared ADK root agent for live voice and typed Claim Assist channels."""
 
 from __future__ import annotations
 
 from google.adk.agents import LlmAgent
 from google.adk.models.google_llm import Gemini
+from google.adk.tools import FunctionTool
 
-from ..clients.claims import BigQueryClaimsRepository, ClaimsRepository
+from ..clients.claims import ClaimsRepository, create_claims_repository
+from ..clients.member_records import (
+    MemberRecordsClient,
+    create_member_records_client,
+)
+from ..services.claim_readiness import ClaimReadinessService
 from ..services.claim_story import ClaimStoryService
 from ..settings import Settings, settings as default_settings
+from .benefits import find_provider_tool, lookup_coverage
+from .claim_readiness import build_screen_claim_readiness_tool
 from .claim_story import build_lookup_claim_story_tool
+from .session_context import build_establish_member_context_tool
 
 VOICE_ORCHESTRATOR_INSTRUCTION = """
-You are the Claim Assist voice agent for a health-plan member services line.
-You are speaking with a caller out loud, so respond the way a helpful phone
-representative would.
+You are the Claim Assist agent for a health-plan member-services prototype.
+The caller may use live voice or typed input. All records are synthetic demo
+data.
 
 Conversation rules:
 - Greet the caller briefly and ask how you can help.
-- For any question about a specific claim, call lookup_claim_story with the
-  exact claim ID and answer only from what it returns.
-- Read the claim ID back to the caller to confirm it before looking it up.
-- Never invent claim facts, coverage rules, denial reasons, or timelines.
-  Copy IDs, dates, codes, amounts, required actions, and estimates exactly
-  from the tool result.
+- Before any member-specific lookup, collect the caller's full name and the
+  subject member ID, then call establish_member_context. Reuse that shared
+  context across later turns, including caller, member, ROI, language, intent
+  history, and structured findings.
+- If establish_member_context returns missing, expired, or unknown ROI, do not
+  call any member-specific claim, readiness, benefit, or provider tool. Explain
+  the approved next step from the result.
+- Claim IDs use a strict two-turn confirmation gate. When the caller first
+  supplies an exact claim ID for Claim Story or Claim Readiness, do not call the
+  claim tool in that turn. Repeat the ID and ask the caller to confirm it.
+- Call lookup_claim_story or screen_claim_readiness only after the caller
+  confirms the repeated claim ID in a later turn. If the caller corrects the
+  ID, repeat the corrected ID and ask for confirmation again.
+- After confirmation, call lookup_claim_story once for a claim explanation and
+  answer only from its result.
+- For coverage, prior-authorization, or cost-sharing questions, call
+  lookup_coverage using the caller's exact service wording. Use find_provider
+  only when the caller asks for a provider or the grounded benefit result
+  recommends provider guidance.
+- After confirmation, call screen_claim_readiness once for a readiness
+  question. Describe it as a rules-based Claim Readiness screen, never as a
+  prediction or probability.
+- A readiness risk band is a rules classification, not a probability.
+  Data completeness describes the inputs, not predictive confidence.
+- Never invent claim facts, coverage rules, denial reasons, readiness factors,
+  provider availability, costs, or timelines. Copy factual values exactly from
+  tool results.
 - If the tool reports not_found, say so and ask the caller to re-check the ID.
+- If a tool reports member_mismatch, ask the caller to re-check the claim and
+  member IDs without revealing claim details.
 - If the tool reports needs_escalation, tell the caller a claims specialist
   needs to review it and offer to connect them.
+- If a benefit result is ambiguous, present its choices and ask the caller to
+  clarify. If it is roi_required, do not share plan-specific detail.
 - Do not diagnose medical conditions or make coverage promises.
 
-Voice style:
+Response style:
 - Short spoken sentences. No markdown, bullet points, or symbols.
 - Say dollar amounts and dates naturally.
 - Summarize the outcome first, then offer more detail instead of reading
@@ -40,6 +74,7 @@ def create_voice_orchestrator(
     settings: Settings | None = None,
     claims_repository: ClaimsRepository | None = None,
     model_name: str | None = None,
+    member_records_client: MemberRecordsClient | None = None,
 ) -> LlmAgent:
     """Create the root agent that fronts the caller channel.
 
@@ -55,10 +90,14 @@ def create_voice_orchestrator(
     """
 
     resolved_settings = settings or default_settings
-    resolved_repository = claims_repository or BigQueryClaimsRepository(
+    resolved_repository = claims_repository or create_claims_repository(
         resolved_settings
     )
-    service = ClaimStoryService(resolved_repository)
+    resolved_member_records = member_records_client or create_member_records_client(
+        resolved_settings
+    )
+    claim_story_service = ClaimStoryService(resolved_repository)
+    readiness_service = ClaimReadinessService(resolved_repository)
     if model_name is None:
         # The live model is only served in some regions (us-central1 for this
         # project), which may differ from GOOGLE_CLOUD_LOCATION, so give the
@@ -76,11 +115,23 @@ def create_voice_orchestrator(
     return LlmAgent(
         name="voice_orchestrator",
         description=(
-            "Front-door voice agent that greets callers and answers claim "
-            "questions from grounded claim-story facts."
+            "Front-door member-services agent that safely coordinates ROI, Claim "
+            "Story, Benefits Q&A, and Claim Readiness."
         ),
         model=model,
         instruction=VOICE_ORCHESTRATOR_INSTRUCTION,
         mode="chat",
-        tools=[build_lookup_claim_story_tool(service)],
+        tools=[
+            build_establish_member_context_tool(resolved_member_records),
+            build_lookup_claim_story_tool(
+                claim_story_service,
+                enforce_member_context=True,
+            ),
+            build_screen_claim_readiness_tool(
+                readiness_service,
+                enforce_member_context=True,
+            ),
+            FunctionTool(lookup_coverage),
+            FunctionTool(find_provider_tool),
+        ],
     )

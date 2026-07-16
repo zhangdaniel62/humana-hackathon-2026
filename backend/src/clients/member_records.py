@@ -8,7 +8,9 @@ with no BigQuery access or credentials.
 """
 from __future__ import annotations
 
+import csv
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Protocol
 
 
@@ -52,15 +54,19 @@ class BigQueryMemberRecordsClient:
         from src.settings import settings as default_settings
 
         self.settings = settings or default_settings
-        if client is not None:
-            self._client = client
-        else:
+        self._client = client
+
+    def _get_client(self):
+        """Create the BigQuery client only when an ROI lookup actually runs."""
+
+        if self._client is None:
             from google.cloud import bigquery
 
             self._client = bigquery.Client(
                 project=self.settings.google_cloud_project,
                 location=self.settings.bigquery_location,
             )
+        return self._client
 
     def _query_one(self, sql: str, params: dict):
         from google.cloud import bigquery
@@ -70,7 +76,7 @@ class BigQueryMemberRecordsClient:
                 bigquery.ScalarQueryParameter(k, "STRING", v) for k, v in params.items()
             ]
         )
-        return list(self._client.query(sql, job_config=job_config).result())
+        return list(self._get_client().query(sql, job_config=job_config).result())
 
     def get_authorizations(self, member_id: str) -> list[Authorization]:
         table = self.settings.table(self.settings.roi_authorizations_table)
@@ -92,6 +98,72 @@ class BigQueryMemberRecordsClient:
             )
             for r in rows
         ]
+
+
+class CsvMemberRecordsClient:
+    """Reads the synthetic ROI authorization snapshot for offline demos."""
+
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or (
+            Path(__file__).resolve().parents[3]
+            / "datasets"
+            / "roi_authorizations.csv"
+        )
+        self._auths: dict[str, list[Authorization]] | None = None
+
+    def get_authorizations(self, member_id: str) -> list[Authorization]:
+        if self._auths is None:
+            self._auths = self._load()
+        return list(self._auths.get(member_id, []))
+
+    def _load(self) -> dict[str, list[Authorization]]:
+        auths: dict[str, list[Authorization]] = {}
+        with self.path.open(newline="", encoding="utf-8") as auth_file:
+            for row in csv.DictReader(auth_file):
+                authorization = Authorization(
+                    auth_id=row["auth_id"].strip(),
+                    member_id=row["member_id"].strip(),
+                    authorized_caller_name=row[
+                        "authorized_caller_name"
+                    ].strip(),
+                    relationship=row["relationship"].strip(),
+                    auth_on_file=_to_bool(row["auth_on_file"]),
+                    expiration_date=row["expiration_date"].strip(),
+                    auth_expired=_to_bool(row["auth_expired"]),
+                )
+                auths.setdefault(authorization.member_id, []).append(
+                    authorization
+                )
+        return auths
+
+
+class FallbackMemberRecordsClient:
+    """Use BigQuery first and the synthetic CSV if the live lookup fails."""
+
+    def __init__(
+        self,
+        primary: MemberRecordsClient,
+        fallback: MemberRecordsClient,
+    ) -> None:
+        self.primary = primary
+        self.fallback = fallback
+
+    def get_authorizations(self, member_id: str) -> list[Authorization]:
+        try:
+            return self.primary.get_authorizations(member_id)
+        except Exception:
+            return self.fallback.get_authorizations(member_id)
+
+
+def create_member_records_client(settings=None) -> MemberRecordsClient:
+    """Build the live ROI client with a deterministic offline fallback."""
+
+    fallback = CsvMemberRecordsClient()
+    try:
+        primary = BigQueryMemberRecordsClient(settings=settings)
+    except Exception:
+        return fallback
+    return FallbackMemberRecordsClient(primary, fallback)
 
 
 class FakeMemberRecordsClient:
