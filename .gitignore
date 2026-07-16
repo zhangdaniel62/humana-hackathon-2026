@@ -221,3 +221,6 @@ __marimo__/
 
 .idea
 .env
+
+# Google ADK local session and artifact state
+.adk/
