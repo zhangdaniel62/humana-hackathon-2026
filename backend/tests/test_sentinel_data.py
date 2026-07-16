@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from clients.mock import load_claim_denial_events, load_compliance_flag_events
-from models import EventType
+from src.clients.mock import load_claim_denial_events, load_compliance_flag_events
+from src.models import EventType
 
 
-DATASETS = Path(__file__).parents[3] / "datasets"
+DATASETS = Path(__file__).parents[2] / "datasets"
 
 
 def test_loads_supplied_claim_denials() -> None:

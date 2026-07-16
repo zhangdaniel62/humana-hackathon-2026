@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from models import AgentEvent, EventType, MetricsBaseline, MetricsSnapshot
+from ..models import AgentEvent, EventType, MetricsBaseline, MetricsSnapshot
 
 
 @dataclass(frozen=True, slots=True)

@@ -4,9 +4,12 @@ import argparse
 import asyncio
 from pathlib import Path
 
-from agents import SentinelAgent
-from clients.mock import load_claim_denial_events, load_compliance_flag_events
-from events import EventLog
+from src.agents import SentinelAgent
+from src.clients.mock import load_claim_denial_events, load_compliance_flag_events
+from src.events import EventLog
+
+
+DEFAULT_DATASETS = Path(__file__).resolve().parents[1] / "datasets"
 
 
 async def run(dataset_directory: Path, output: Path | None) -> None:
@@ -40,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--datasets",
         type=Path,
-        default=Path("../../datasets"),
+        default=DEFAULT_DATASETS,
         help="Directory containing claims.csv and compliance_flags.csv",
     )
     parser.add_argument("--output", type=Path, help="Optional JSON snapshot path")

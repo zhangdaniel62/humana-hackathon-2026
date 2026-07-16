@@ -27,3 +27,18 @@ Live checks are opt-in:
 RUN_BIGQUERY_INTEGRATION=1 uv run python -m unittest tests.test_claim_story_integration -v
 RUN_VERTEX_INTEGRATION=1 uv run python -m unittest tests.test_claim_story_integration -v
 ```
+
+## Sentinel monitoring
+
+Sentinel consumes structured backend events asynchronously and produces
+explainable operational and compliance alerts plus session metrics. Its code
+lives with the rest of the application under `src/`.
+
+Run its historical-data replay from this directory:
+
+```shell
+uv run python sentinel_demo.py
+```
+
+See [SENTINEL_SETUP.md](SENTINEL_SETUP.md) for event contracts, configuration,
+and dashboard integration.

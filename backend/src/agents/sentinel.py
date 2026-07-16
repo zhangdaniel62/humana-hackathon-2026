@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from events import EventLog, EventSubscription
-from metrics import SentinelMetrics
-from models import (
+from ..events import EventLog, EventSubscription
+from ..metrics import SentinelMetrics
+from ..models import (
     AgentEvent,
     AlertSeverity,
     AlertType,
@@ -17,7 +17,7 @@ from models import (
     SentinelAlert,
     SentinelSnapshot,
 )
-from settings import Settings
+from ..settings import SentinelSettings
 
 
 class SentinelAgent:
@@ -33,10 +33,10 @@ class SentinelAgent:
         self,
         event_log: EventLog,
         *,
-        settings: Settings | None = None,
+        settings: SentinelSettings | None = None,
         baseline: MetricsBaseline | None = None,
     ) -> None:
-        self.settings = settings or Settings()
+        self.settings = settings or SentinelSettings()
         self._event_log = event_log
         self._metrics = SentinelMetrics(baseline)
         self._alerts: dict[str, SentinelAlert] = {}

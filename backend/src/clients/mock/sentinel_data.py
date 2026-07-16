@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
-from models import AgentEvent, EventType
+from ...models import AgentEvent, EventType
 
 
 def _timestamp(value: str) -> datetime:

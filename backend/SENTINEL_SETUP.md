@@ -17,27 +17,28 @@ compliance alerts.
 - Streamlit dashboard rendering function
 - focused tests and a historical-data replay demo
 
-## Windows setup without uv
+## Setup
 
-Run these commands from `src\backend` in PowerShell. They do not require
-activating the virtual environment.
+Run these commands from `backend/`:
 
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements-sentinel.txt
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe sentinel_demo.py --datasets ..\..\datasets
+```shell
+uv sync --dev
+uv run pytest -q
+uv run python sentinel_demo.py
 ```
 
-If `py -3.12` is unavailable but `python --version` reports Python 3.12 or
-newer, replace `py -3.12` in the first command with `python`.
+The replay demo reads the repository's `datasets/` directory by default. Pass
+`--datasets` to use a different directory and `--output` to write the snapshot
+as JSON.
 
 ## Runtime integration
 
 Create one event log and Sentinel instance during application startup:
 
 ```python
+from src.agents import SentinelAgent
+from src.events import EventLog
+
 event_log = EventLog()
 sentinel = SentinelAgent(event_log)
 await sentinel.start()
@@ -46,6 +47,8 @@ await sentinel.start()
 Publish events from specialist agents without waiting for Sentinel:
 
 ```python
+from src.models import AgentEvent, EventType
+
 event_log.publish_nowait(
     AgentEvent(
         session_id=context.session_id,

@@ -1,10 +1,10 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from agents import SentinelAgent
-from events import EventLog
-from models import AgentEvent, AlertType, EventType
-from settings import Settings
+from src.agents import SentinelAgent
+from src.events import EventLog
+from src.models import AgentEvent, AlertType, EventType
+from src.settings import SentinelSettings
 
 
 NOW = datetime(2026, 7, 16, 15, 0, tzinfo=timezone.utc)
@@ -60,7 +60,7 @@ def test_detects_roi_frequency_using_async_consumer() -> None:
         event_log = EventLog()
         sentinel = SentinelAgent(
             event_log,
-            settings=Settings(roi_gap_threshold=2),
+            settings=SentinelSettings(roi_gap_threshold=2),
         )
         await sentinel.start()
         for index in range(2):

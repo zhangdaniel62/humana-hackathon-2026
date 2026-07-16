@@ -1,7 +1,7 @@
 import asyncio
 
-from events import EventLog
-from models import AgentEvent, EventType
+from src.events import EventLog
+from src.models import AgentEvent, EventType
 
 
 def test_event_log_replays_and_streams_events() -> None:

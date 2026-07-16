@@ -1,4 +1,4 @@
-from clients.mock.sentinel_data import (
+from .sentinel_data import (
     load_claim_denial_events,
     load_compliance_flag_events,
 )

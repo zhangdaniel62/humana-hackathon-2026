@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from models import SentinelSnapshot
+from ..models import SentinelSnapshot
 
 
 def render_sentinel_dashboard(snapshot: SentinelSnapshot) -> None:

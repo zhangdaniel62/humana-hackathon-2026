@@ -1,6 +1,6 @@
-from events import EventLog
-from agents import SentinelAgent
-from models import AgentEvent, EventType, MetricsBaseline
+from src.agents import SentinelAgent
+from src.events import EventLog
+from src.models import AgentEvent, EventType, MetricsBaseline
 
 
 def test_computes_metrics_from_completed_sessions() -> None:
