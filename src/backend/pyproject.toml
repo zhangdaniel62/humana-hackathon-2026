@@ -7,3 +7,14 @@ requires-python = ">=3.14"
 dependencies = [
     "google-adk>=2.4.0",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+# No [build-system], so the package isn't installed; put the project root on
+# sys.path explicitly rather than relying on rootdir inference.
+pythonpath = ["."]
+testpaths = ["tests"]
