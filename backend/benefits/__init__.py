@@ -13,7 +13,7 @@ agent -- `benefits_agent` is resolved lazily so the deterministic core stays
 usable without google-adk installed.
 """
 
-from .agent import (
+from ..src.agents.benefits import (
     AGENT_KEY,
     EVENT_TYPE,
     NETWORK_GAP_EVENT,
@@ -67,7 +67,7 @@ __all__ = [
 def __getattr__(name: str):
     # Lazy so `import benefits` works without google-adk present.
     if name in {"benefits_agent", "build_agent"}:
-        from . import agent as _agent
+        from ..src.agents import benefits as _agent
 
         return getattr(_agent, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
