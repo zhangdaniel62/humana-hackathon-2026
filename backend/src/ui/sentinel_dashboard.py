@@ -35,7 +35,21 @@ def render_sentinel_dashboard(snapshot: SentinelSnapshot) -> None:
         delta_color="inverse",
     )
 
-    st.caption(f"Baseline: {metrics.baseline.source_note}")
+    second_row = st.columns(4)
+    second_row[0].metric("Escalation rate", _rate(metrics.escalation_rate))
+    second_row[1].metric("ROI-gap rate", _rate(metrics.roi_gap_rate))
+    second_row[2].metric(
+        "At-risk claims identified", metrics.at_risk_claims_identified
+    )
+    second_row[3].metric(
+        "Corrective interventions recorded",
+        metrics.corrective_interventions_recorded,
+    )
+
+    st.caption(
+        f"Baseline assumption ({metrics.baseline.data_label}): "
+        f"{metrics.baseline.source_note}"
+    )
     rows = [
         {
             "severity": alert.severity.value.upper(),
@@ -43,12 +57,18 @@ def render_sentinel_dashboard(snapshot: SentinelSnapshot) -> None:
             "title": alert.title,
             "description": alert.description,
             "recommended_action": alert.recommended_action,
+            "evidence_event_ids": ", ".join(
+                str(event_id) for event_id in alert.evidence_event_ids
+            ),
             "occurrences": alert.occurrences,
             "last_seen": alert.last_seen,
         }
         for alert in snapshot.alerts
     ]
-    st.dataframe(rows, use_container_width=True, hide_index=True)
+    if rows:
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+    else:
+        st.info("No active alerts. Run the deterministic golden path or a live session.")
 
 
 def _minutes(value: float | None) -> str:

@@ -6,10 +6,9 @@ understand claims, verify whether information may be disclosed, answer benefit
 questions, identify actionable claim-readiness risks, and surface operational
 signals before every issue requires a human call.
 
-This document is the source of truth for product scope, architecture, feature
-priority, implementation order, demo flow, and future additions. Detailed
-frontend and live-audio design is kept in
-[Frontend and Voice Plan](frontend_voice_plan.md).
+This document is the single source of truth for product scope, architecture,
+channel contracts, feature priority, implementation order, demo flow, and
+future additions.
 
 ## Implementation status at a glance
 
@@ -18,40 +17,57 @@ feature. Status reflects the current repository, not the target architecture.
 
 | Area | Status | Implemented now | Work remaining | Roadmap |
 |---|---|---|---|---|
-| FastAPI and ADK platform | **Implemented** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/voice`, and `/demo` are mounted; health, app discovery, route mounting, and offline startup were terminal-verified. | Preserve the existing surface while adding later read-only APIs. | Foundation |
-| Live voice and typed fallback | **Implemented baseline** | Continuous browser audio, transcripts, interruption handling, spoken replies, and typed input remain wired to the shared root-agent factory. Credentialed ADK text turns were verified against Vertex AI for ROI, Claim Story, Benefits, provider guidance, ambiguity, and Claim Readiness tool selection. | A real microphone-to-live-model call remains an environment check; structured result cards and React parity are later UI work. | Features 6, 8, 12 |
-| Claim Story | **Implemented and integrated** | Exact BigQuery lookup with synthetic CSV fallback, deterministic timeline and denial guidance, grounding, confidence handling, escalation, shared findings, ROI enforcement, and tests exist. | Add shared prevention events only in the later event-contract feature. | Features 3–5 |
-| Benefits Q&A | **Implemented and integrated** | Deterministic coverage, prior authorization, cost, provider guidance, CSV/BigQuery clients, ambiguity handling, ROI refusal, shared findings, and orchestrator routing are verified. | Add later structured API/UI projections without changing benefit facts. | Feature 4 |
-| ROI controls | **Implemented through MVP checkpoint** | One shared session context resolves verified, not-required, missing, expired, and unknown ROI; all member-specific tools fail closed and ROI-gap/session-start events are typed and tested. | Production identity proofing and authorization submission remain future work. | Feature 3 |
-| Shared orchestrator | **Implemented through Claim Readiness** | The root agent routes ROI, Claim Story, Benefits Q&A, provider guidance, and Claim Readiness for voice and text while preserving language, intent history, and structured findings across turns. | Later event, summary-API, notification, Sentinel, and UI work remains intentionally out of scope for this checkpoint. | Features 2–4 |
-| Claim Readiness | **Implemented through orchestrator tool** | Validated request/result models, exact-claim service, Pending/In Review eligibility, reviewed prior-authorization and referral rules, completeness handling, synthetic labeling, grounding, ROI enforcement, shared findings, and focused tests exist. | Prevention events and notification previews remain later independent features. | Features 1–2 |
-| Prevention events | **Not started** | A typed append-only event system already exists. | Add readiness and intervention event types with auditable evidence. | Feature 5 |
-| Structured session-summary API | **Not started** | Specialist results can already be stored in ADK session state. | Add a validated read-only projection for claim, benefit, ROI, and readiness findings. | Feature 6 |
-| Metrics methodology | **Partially implemented** | Sentinel calculates AHT, FCR, repeat contacts, escalation, and a baseline comparison. | Add labeled assumptions and replace unsupported prevention claims with corrective interventions recorded. | Feature 7 |
-| Notification preview | **Not started** | Claim and readiness facts can support deterministic message generation. | Add a grounded preview model and render it as explicitly not sent. | Feature 8 |
-| Sentinel runtime | **Implemented core / not integrated** | Event consumer, alerts, historical replay, metrics, tests, and Streamlit rendering exist. | Create application-scoped lifecycle, connect live events, and expose operational APIs. | Feature 9 |
-| Operations dashboard | **Partially implemented** | A Streamlit rendering function exists. | Connect it to live Sentinel data and display the planned metrics and evidence. | Feature 10 |
-| Expanded golden path | **Not assembled** | Individual Claim Story, Benefits, Sentinel, and voice components can already be demonstrated separately. | Connect the completed features into one repeatable, fallback-safe presentation. | Feature 11 |
-| React caller and dashboard UI | **Not started / stretch** | The static `/demo` page is the working audio reference. | Build only after the backend critical path is stable; retain `/demo` and Streamlit fallbacks. | Feature 12 |
+| FastAPI and ADK platform | **Implemented through the minimal Feature 16 boundary** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/conversation`, `/ws/voice`, `/demo`, `/operations`, auth APIs, summary and operations APIs, liveness/readiness checks, CI, and container startup are present. | ADK/session durability, managed infrastructure, and distributed deployment remain future work. | Foundation; Features 0, 6, 9–10, 16 |
+| Authentication and role access | **Hackathon backend implemented** | One local SQLite file stores users, hashed sessions, synthetic reps, and synthetic operations history. Argon2 passwords, opaque hashed sessions, tracked schemas/seeds, login/me/logout APIs, allowed-origin checks, HTTP/WebSocket RBAC, role capabilities, an explicit disabled-by-default local bypass, ADK identity propagation, and summary ownership are verified. | Login and role-specific pages are Feature 12; enterprise identity, MFA, recovery, rate limiting, managed secrets, and durable audit retention remain future work. | Feature 0; Feature 12 UI |
+| First-class Chat and Voice | **Backend modes and role parity implemented** | Authenticated customers and reps use `/ws/conversation` or `/ws/voice` and can switch between Chat and Voice without losing the session. Both roles receive spoken AI output in Voice mode; Chat suppresses audio while preserving transcripts. Continuous input, interruption handling, validated frames, session correlation, summary-aware turn completion, transcript de-duplication, and typed safe errors are verified. | A credentialed microphone-to-live-model call remains an environment check. Frontends decide whether playback is appropriate for a particular call-center setup without the backend silently downgrading the rep role. | Features 0, 6, 8, 12 |
+| Claim Story | **Implemented and integrated** | Exact BigQuery lookup with synthetic CSV fallback, deterministic timeline and denial guidance, grounding, confidence handling, escalation, shared findings, ROI enforcement, and typed denial/escalation events are verified. | Population-wide analysis and production data operations remain future work. | Features 3–5, 9 |
+| Benefits Q&A | **Implemented and integrated** | Deterministic coverage, prior authorization, cost, provider guidance, CSV/BigQuery clients, ambiguity handling, ROI refusal, shared findings, typed operational events, orchestrator routing, and summary projection are verified. | Production directory freshness and data-source operations remain future work. | Features 4, 6, 9 |
+| ROI controls | **Implemented and integrated** | One shared session context resolves verified, not-required, missing, expired, and unknown ROI; all member-specific tools fail closed, findings project through the summary API, and ROI-gap/session-start events feed Sentinel. | Production identity proofing and authorization submission remain future work. | Features 3, 6, 9 |
+| Shared orchestrator | **Tool orchestration plus narrow ADK delegation implemented** | The root routes ROI, Claim Story, Benefits, provider guidance, Readiness, and intervention recording. Claim Story uses a typed ADK `AgentTool` with grounded fallback and metadata-only traces. Every root routing decision is logged server-side with specialist/tool and correlation IDs, excluding arguments and result payloads. | ROI, Benefits, and Readiness remain deterministic tools; add more LLM handoffs only when they demonstrate evaluated value. Durable cross-instance session state remains future work. | Features 2–9, 14 |
+| Claim Readiness | **Exact-claim and bounded population screening implemented** | Deterministic screening, ROI enforcement, findings, events, previews, interventions, and a bounded Pending/In Review scanner feed the authorized rep queue with reviewed rules only. | Production batch ingestion, distributed scheduling, and additional rules backed by reviewed data remain future work. | Features 1–2, 5, 8–9, 15 |
+| Prevention events | **Implemented and integrated** | Readiness risk, intervention recommendation, and intervention recording use typed evidence payloads in the shared append-only log. | Durable external event streaming remains future work. | Feature 5 |
+| Structured session-summary and rep-queue APIs | **Implemented and authorized** | The summary API returns validated domain findings with ownership rules; the narrow rep queue exposes only work-item fields and enforces capability, assignment, version, and state-transition rules. | Distributed session storage and production claim-system integration remain future work. | Features 0, 6, 12, 15 |
+| Metrics and evaluation methodology | **Synthetic implementation complete** | Persisted operations supply chart-ready business measures, while the versioned offline corpus reports grounding, reviewed rules, ROI/disclosure safety, routing-contract checks, and p50/p95 execution latency under CI thresholds. | Production baselines, controlled outcome evaluation, and credentialed live-model measurements remain future work. | Features 7, 13 |
+| Notification preview | **Implemented** | At-risk readiness results produce a grounded portal-message preview labeled `preview` and `not_sent`, visible on the operations page. | Real outbound delivery remains future work. | Feature 8 |
+| Sentinel runtime | **Single-instance replay boundary implemented** | Structured events persist in SQLite, replay at startup, and are processed once per event ID into application-scoped Sentinel alerts and metrics. | Multi-worker coordination, external event streaming, and enterprise retention remain future work. | Features 9, 16 |
+| Synthetic operations history | **Implemented and manager-only** | The shared local SQLite file is seeded idempotently with 1,521 call rows generated from 26 base-week cohorts, including 207 separate synthetic follow-up rows, automated/manual routing, four synthetic reps, and 26 claim-intervention workflow rows. The default completed-period view contains 1,520 rows across 26 weekly points and uses the trailing follow-up only for cohort observation. Supplied CSV/BigQuery source rows are never changed. | Production warehouse ingestion and real outcome linkage remain future work. | Features 0, 7, 10 |
+| Operations dashboard | **Backend complete; role-specific frontend pending** | `/operations` still displays the live Sentinel snapshot. `GET /api/operations/dashboard` adds manager-only weekly/monthly trends, date filtering, default completed-period behavior, manual-versus-automated volumes, per-rep workload, and the intervention funnel from persisted synthetic data. | Implement the five-tab frontend from `assets/docs/dashboard_frontend_contract.md`; advanced breakdowns and push updates remain stretch work. | Features 0, 10, 12 |
+| Expanded golden path | **Implemented with idempotent deterministic fallback** | A fixed-ID manager trigger now runs the population scan, produces and resolves a prioritized synthetic rep work item, records an explicitly offline fallback trace, executes the grounded intervention flow, returns the manager snapshot, and embeds the offline evaluation result. A repeated idempotency key returns the stored run without duplicating events or metrics. | Live microphone/model access remains an environment check; the endpoint labels its rep action as a synthetic simulation. | Feature 11 |
+| Role-specific product backend | **Implemented; frontend remains separate** | The backend returns role capabilities, gives customer and rep Voice parity, and exposes a narrow capability-protected rep queue with atomic claim/resolve/dismiss transitions. The combined `/demo` page remains a validation surface. | Build login, customer/rep experiences, and the five-tab manager frontend against these contracts. | Feature 12 |
+| Evaluation harness | **Offline harness and CI thresholds implemented** | A versioned eight-case synthetic corpus evaluates grounding, reviewed readiness rules, ROI, fail-closed disclosure, and the declared routing contract. JSON/Markdown reports include p50/p95 latency; GitHub Actions enforces 100% offline category thresholds. | Run the explicit `--live` case with judge-environment Vertex credentials before claiming live ADK quality or network latency. | Feature 13 |
+| ADK specialist delegation | **Implemented narrowly for Claim Story** | The live root invokes a real typed Claim Story `AgentTool`, checks its result against deterministic grounding, records metadata-only trace IDs/timing/outcome, and fails closed to the direct tool. Runner-level tests prove both the nested handoff and fallback. | ROI, Benefits, and Readiness remain deterministic specialist tools rather than extra LLM hops. Expand only when each handoff adds value and passes the same grounding test. | Feature 14 |
+| Proactive prevention queue | **Synthetic backend implemented** | A bounded CSV/BigQuery repository contract scans Pending/In Review claims with existing reviewed rules. SQLite enforces scan/work-item deduplication, priority ordering, assignment, optimistic versions, and legal states. Manager scan and rep queue APIs enforce role/capability boundaries. | Production batch source, distributed scan locking, queue SLA policy, and real claim-system writeback remain future work. | Feature 15 |
+| Durable runtime boundary | **Minimal single-instance boundary implemented** | SQLite persists work items, idempotency runs, trace metadata, and structured events. Startup replays events exactly once into Sentinel and performs one idempotent scan. Liveness, manager readiness, CI, Docker startup, and restart tests are present. | ADK sessions and session summaries remain in process; there is no multi-worker leader election, distributed queue, or enterprise event bus. | Feature 16 |
 
-Current verified backend checkpoint: **148 tests passed, 2 skipped, and 216
+Current verified backend checkpoint: **169 tests passed, 3 skipped, and 216
 subtests passed**. At user direction, this checkpoint was verified through
-terminal tests and FastAPI/application smoke checks while the frontend is being
-implemented separately.
+terminal tests, FastAPI/application smoke checks, an isolated repeatable auth
+bootstrap, the historical Sentinel replay, and a real-browser golden-path
+dashboard exercise while the frontend is being implemented separately.
 
 ## 1. Target outcome
 
 The complete hackathon demo should show one grounded workflow:
 
-1. Start a voice or text conversation.
-2. Establish caller identity, subject member, and session context.
-3. Apply Release of Information (ROI) controls when the caller represents
+1. Authenticate as a customer, representative, or manager and expose only the
+   capabilities assigned to that role.
+2. As a customer or representative, choose either first-class Chat or
+   first-class Voice and switch modes without losing the session. Chat provides
+   complete typed interaction; Voice provides complete spoken interaction for
+   both roles.
+3. Establish caller identity, subject member, and session context.
+4. Apply Release of Information (ROI) controls when the caller represents
    another adult member.
-4. Explain an existing claim in plain language.
-5. Answer a related coverage, prior-authorization, or cost-sharing question.
-6. Inspect a Pending or In Review claim for reviewed readiness risks.
-7. Recommend and record a corrective intervention.
-8. Show the resulting events, alerts, and calculated demo metrics.
+5. Explain an existing claim in plain language.
+6. Answer a related coverage, prior-authorization, or cost-sharing question.
+7. Proactively scan Pending and In Review claims and create a prioritized rep
+   work item from reviewed readiness evidence.
+8. Inspect the work item, recommend an action, and record a corrective
+   intervention.
+9. As a manager, show the resulting events and alerts alongside persisted metric
+   trends, automated/manual workload, and the intervention funnel.
+10. Show the agent handoff trace and the latest evaluation report so routing,
+    grounding, ROI safety, and latency claims are auditable.
 
 The business story is a shift from reactive explanation toward proactive,
 trusted self-service:
@@ -87,8 +103,22 @@ make an earlier feature truthful.
 |---|---|
 | **P0 — Critical path** | Implement in order. These features create the strongest rubric-aligned, end-to-end story. |
 | **P1 — High-value integration** | Implement after the P0 checkpoint is stable. These improve operational visibility and presentation. |
-| **P2 — Stretch** | Implement only if the complete fallback demo remains reliable. |
+| **P2 — Stretch** | Implement only if the complete demo and its deterministic contingency path remain reliable. |
 | **Future** | Present as the enterprise path; do not attempt during the hackathon. |
+
+### Rating-5 evidence rule
+
+Features 12–16 are scoring gates, not a request to maximize feature count. Each
+must produce judge-visible evidence in addition to code and tests:
+
+- a working role-appropriate surface or direct workflow output
+- a trace from user or scheduled trigger through grounded action
+- a reproducible verification command and saved result
+- an explicit limitation statement for synthetic assumptions or local storage
+- a deterministic contingency that preserves truthful demo behavior
+
+Do not start a lower-value P2 item while a rating-5 scoring gate remains
+incomplete unless the gate is blocked by unavailable reviewed data.
 
 ### Honest prototype language
 
@@ -116,41 +146,70 @@ but it must be labeled accurately:
 
 ## 4. Product surfaces
 
-Claim Assist has two user-facing surfaces:
+Claim Assist targets three role-specific user-facing surfaces:
 
-- **Caller/member-services experience:** voice and text access to claim stories,
-  benefit answers, ROI guidance, readiness results, notification previews, and
-  safe escalation.
-- **Operations/manager experience:** alerts and metrics for denial patterns, ROI
-  gaps, repeat contacts, escalations, at-risk claims identified, and corrective
-  interventions recorded.
+- **Customer experience:** equal first-class Chat and Voice with complete typed
+  or spoken AI responses, plus the customer's own claim stories, benefit
+  answers, ROI guidance,
+  readiness results, notification previews, and safe escalation.
+- **Representative experience:** a future queue of customers who need help,
+  plus equal first-class Chat and Voice with complete typed or spoken AI
+  responses, structured results, and authorized access to session summaries
+  needed to assist callers.
+- **Operations/manager experience:** manager-only alerts plus weekly/monthly AHT,
+  FCR, repeat-contact, automated/manual routing, per-rep manual workload, and
+  intervention funnel. Live Sentinel metrics remain available for the
+  current session/event population.
 
-The current static browser-microphone page at `/demo` is the required
-low-dependency fallback. A React `/call` and `/dashboard` application is a
-stretch presentation layer, not a prerequisite for the domain workflow.
+The current customer/rep static browser-microphone page at `/demo` is a
+low-dependency Voice validation surface. It does not define Chat as a fallback
+or replace the required first-class Chat UI. Authentication currently exposes an API contract,
+not a login page. The full login, customer, rep, and manager frontend is a
+separate workstream against the contracts in this document; it is not a
+prerequisite for the backend domain workflow.
 
 ## 5. Architecture
 
 ```mermaid
 flowchart TD
-    Caller["Caller or member-services user"]
-    CallUI["Call experience<br/>voice, text, structured results"]
-    ManagerUI["Operations dashboard"]
+    Customer["Customer"]
+    Rep["Representative"]
+    Manager["Manager"]
+    CustomerUI["Future customer experience<br/>first-class Chat + Voice, own results"]
+    RepUI["Future rep experience<br/>Help queue, first-class Chat + Voice"]
+    ManagerUI["Manager operations dashboard"]
+    Auth["Auth API + RBAC<br/>opaque session cookie"]
+    AuthDB["Shared local SQLite<br/>users, sessions, and synthetic operations"]
     API["FastAPI + ADK application<br/>REST, SSE, WebSocket"]
-    Orchestrator["ADK orchestrator<br/>intent, session state, tool routing"]
-    ROI["ROI gatekeeper<br/>disclosure decision"]
-    Claim["Claim Story<br/>timeline and denial guidance"]
-    Benefits["Benefits Q&A<br/>coverage, prior auth, cost, providers"]
-    Readiness["Claim Readiness<br/>deterministic rules"]
+    Orchestrator["ADK orchestrator<br/>typed specialist delegation"]
+    ROI["ROI specialist agent<br/>disclosure decision"]
+    Claim["Claim Story specialist agent<br/>timeline and denial guidance"]
+    Benefits["Benefits specialist agent<br/>coverage, prior auth, cost, providers"]
+    Readiness["Readiness specialist agent<br/>deterministic rules"]
     Preview["Notification preview"]
     ClaimsData["Claims data<br/>BigQuery or synthetic fixtures"]
     BenefitsData["Coverage, member, ROI, provider data<br/>CSV or BigQuery"]
     EventLog["Shared append-only event log"]
     Sentinel["Sentinel<br/>async alerts and metrics"]
-    OpsAPI["Events, alerts, metrics,<br/>and session-summary APIs"]
+    ManagerAPI["Manager-only events,<br/>alerts, and metrics APIs"]
+    DashboardAPI["Manager-only persisted dashboard API<br/>date filters + weekly/monthly trends"]
+    OperationsStore["Synthetic operations history<br/>calls, reps, intervention workflow"]
+    SummaryAPI["Authorized session-summary API"]
+    Scanner["Restart-safe readiness scanner<br/>deduplication + thresholds"]
+    WorkQueue["Rep prevention work queue<br/>evidence + next action"]
+    Evaluation["Evaluation harness<br/>quality, safety, routing, latency"]
+    TraceStore["Trace and audit repository<br/>local durable adapter"]
 
-    Caller --> CallUI
-    CallUI -->|"/run_sse or /ws/voice"| API
+    Customer --> CustomerUI
+    Rep --> RepUI
+    Manager --> ManagerUI
+    CustomerUI --> Auth
+    RepUI --> Auth
+    ManagerUI --> Auth
+    Auth --> AuthDB
+    Auth -.->|"authenticated identity and capabilities"| API
+    CustomerUI -->|"/ws/conversation: full Chat or Voice"| API
+    RepUI -->|"/ws/conversation: full Chat or Voice"| API
     API --> Orchestrator
     Orchestrator --> ROI
     Orchestrator --> Claim
@@ -161,28 +220,48 @@ flowchart TD
     Benefits --> BenefitsData
     ROI --> BenefitsData
     Readiness --> Preview
+    Scanner --> Readiness
+    Scanner --> WorkQueue
+    WorkQueue --> RepUI
+    WorkQueue -.-> EventLog
     ROI -.-> EventLog
     Claim -.-> EventLog
     Benefits -.-> EventLog
     Readiness -.-> EventLog
     EventLog --> Sentinel
-    Sentinel --> OpsAPI
-    OpsAPI --> ManagerUI
-    OpsAPI --> CallUI
+    Sentinel --> ManagerAPI
+    ManagerAPI --> ManagerUI
+    API --> DashboardAPI
+    DashboardAPI --> OperationsStore
+    OperationsStore --> AuthDB
+    DashboardAPI --> ManagerUI
+    API --> SummaryAPI
+    SummaryAPI --> ManagerUI
+    SummaryAPI --> RepUI
+    SummaryAPI --> CustomerUI
+    Orchestrator -.-> TraceStore
+    EventLog --> TraceStore
+    Evaluation -.-> Orchestrator
+    Evaluation --> ManagerUI
 ```
 
 ### Architectural responsibilities
 
 | Layer | Responsibility |
 |---|---|
-| Frontend | Presents conversation and structured results; never determines claim, coverage, ROI, or readiness facts. |
-| FastAPI/ADK application | Hosts text endpoints, the live voice WebSocket, read-only operational APIs, and the fallback demo. |
-| Orchestrator | Owns the conversation, establishes session state, enforces ROI, and invokes deterministic specialist tools while retaining control. |
+| Frontend | Authenticates through the backend, presents only role-appropriate navigation and capabilities, and renders conversation and structured results; never determines authorization, claim, coverage, ROI, or readiness facts. |
+| Authentication and RBAC | Verifies local demo credentials, owns opaque sessions, maps users to capabilities, protects HTTP/WebSocket routes, and supplies authenticated identity to ADK state. |
+| Persisted dashboard analytics | Reads the labeled synthetic operations tables in the shared local SQLite file and returns date-filtered summaries, weekly/monthly trends, routing workload, and intervention workflow counts through a manager-only API. |
+| FastAPI/ADK application | Hosts authenticated first-class Chat and Voice channels, authorized operational/summary APIs, and the legacy customer/rep Voice validation page. |
+| Orchestrator and specialist agents | Own the conversation, delegate through typed handoffs to explicit ADK specialists, retain control, and preserve deterministic grounded services underneath each agent. |
 | Claim Story | Builds a grounded lifecycle and denial explanation for one exact claim. |
 | Benefits Q&A | Builds deterministic coverage, prior-authorization, cost, and provider guidance. |
 | Claim Readiness | Applies reviewed rules to one Pending or In Review claim and explains actionable evidence. |
 | Data clients | Hide CSV and BigQuery implementations behind stable interfaces. |
 | Event log and Sentinel | Keep monitoring outside the request path and convert structured events into alerts and metrics. |
+| Evaluation and trace | Measure routing, grounding, safety, refusal, and latency against versioned cases; persist traceable evidence for regressions and judge-visible inspection. |
+| Scanner and rep work queue | Evaluate eligible claims outside conversations, deduplicate actionable findings, apply transparent prioritization, and create evidence-backed rep work items. |
+| Durable runtime adapters | Persist local sessions, events, traces, evaluations, and work items behind repository interfaces with replay, idempotency, audit, and health behavior. |
 
 ## 6. Implementation baseline
 
@@ -265,6 +344,88 @@ current claims repository retrieves one exact claim at a time.
 
 ## 8. Shared contracts
 
+### Authentication and role access
+
+The implemented hackathon identity provider is local SQLite authentication.
+Passwords are stored as Argon2 hashes. Successful login creates an opaque
+random session token; only its SHA-256 hash is stored in SQLite. The browser
+receives the raw token in an eight-hour `HttpOnly`, `SameSite=Lax` cookie that
+is marked `Secure` when configured for deployment.
+
+The runtime database at `backend/.data/auth.sqlite3` is intentionally local
+because logins mutate its session table. It contains both authentication tables
+and synthetic operations tables so one bootstrap and one configured path serve
+the backend consistently. Reproducible auth schema/accounts are tracked in
+`backend/src/auth/schema.sql` and `backend/src/auth/demo_seed.sql`; operations
+schema and deterministic history are tracked in `backend/src/operations/`.
+Run `uv run python -m src.operations.bootstrap` from `backend/` to apply both
+sets idempotently when `AUTH_ENABLE_DEMO_SEED=true`.
+
+Auth API contract:
+
+| Endpoint | Access | Behavior |
+|---|---|---|
+| `POST /api/auth/login` | Public, allowed origins only | Verifies username/password, sets the session cookie, and returns the public user plus capabilities. |
+| `GET /api/auth/me` | Authenticated | Returns `{id, username, role, capabilities}` for frontend routing. |
+| `POST /api/auth/logout` | Authenticated | Revokes the stored session and clears the cookie. |
+
+Role and server-enforced capability contract:
+
+| Role | Capabilities | Current access | Future surface |
+|---|---|---|---|
+| `manager` | `manager_dashboard` | `/operations`, operational APIs, OpenAPI/docs, and raw ADK developer/session/run endpoints | Manager dashboard only |
+| `customer` | `chat`, `voice` | `/demo`, `/ws/conversation`, `/ws/voice`, spoken AI audio, and summaries owned by the authenticated customer | Full Chat and Voice page |
+| `rep` | `rep_queue`, `chat`, `voice` | `/demo`, `/ws/conversation`, `/ws/voice`, and current in-process summaries; spoken AI audio is incorrectly suppressed in the current backend | Help queue plus full Chat and Voice |
+
+HTTP APIs return `401` for absent, invalid, or expired sessions and `403` for
+insufficient permissions. WebSockets fail before acceptance with close code
+`4401` or `4403`. Browser origins must match `AUTH_ALLOWED_ORIGINS`. Hiding a
+page or control in the frontend is never treated as authorization.
+
+For credential-free local microphone testing only, `AUTH_BYPASS_ENABLED=true`
+selects the synthetic identity configured by `AUTH_BYPASS_ROLE`. The bypass is
+off by default, preserves role/origin authorization, logs a startup warning,
+and must never be enabled in a deployed environment.
+
+### Persisted operations-dashboard analytics
+
+The manager-only endpoint below is the frontend's chart contract:
+
+```http
+GET /api/operations/dashboard?start=YYYY-MM-DD&end=YYYY-MM-DD&bucket=week
+```
+
+`start` and `end` are optional inclusive UTC dates. `bucket` is `week` or
+`month`. With no dates, the response ends at the latest completed period while
+retaining a later observation cutoff for repeat-contact cohort maturity. The
+payload contains:
+
+- a visible `synthetic_demo` data label and synthetic comparison assumptions
+- one summary plus weekly/monthly trend points for completed sessions, AHT,
+  mature initial contacts, FCR, repeat rate, and automated/manual volume
+- an identified/recommended/recorded claim-intervention funnel
+- manual-review counts by synthetic representative
+
+The deterministic seed contains 1,521 call rows generated from 26 base-week
+cohorts, including 207 separate synthetic same-member/same-claim follow-up rows;
+1,091 calls are automated and
+430 are assigned for manual review across `rep.alex`, `rep.jordan`,
+`rep.morgan`, and `rep.taylor`. It also contains 26 intervention-risk workflow
+rows, 23 of which reach recommendation and 17 of which reach recording. These
+rows supplement dashboard presentation only: source CSV/BigQuery records are
+not modified, and no synthetic final adjudication outcome is created.
+
+AHT is the mean duration of selected call rows. FCR and repeat rate use only
+initial contacts whose entire inclusive seven-day follow-up window is
+observable. FCR requires a resolved initial contact with no same-member,
+same-claim follow-up in that window; repeat rate counts initial contacts with
+such a follow-up. Intervention coverage is recorded divided by identified; it
+is workflow completion and never proof that a denial was prevented.
+
+The exact response schema, null/empty/error behavior, page mappings, TypeScript
+types, and frontend implementation prompt are maintained in
+`assets/docs/dashboard_frontend_contract.md`.
+
 ### Session state
 
 ADK session state is the shared contract. Pydantic models validate structured
@@ -273,6 +434,8 @@ values.
 | Key | Purpose |
 |---|---|
 | `session_id` | Correlates conversation, events, metrics, and UI state. |
+| `auth_user_id` | Associates the ADK conversation and summary with the authenticated backend user. |
+| `auth_role` | Records the authenticated `customer` or `rep` role used to authorize the conversation. |
 | caller identity / `caller_name` | Identifies who is requesting information. |
 | `subject_member_id` | Identifies whose information is in scope. |
 | `roi_status` | Controls member-specific disclosure. |
@@ -280,6 +443,102 @@ values.
 | `intent_history` | Records routed intents. |
 | `agent_findings` | Stores structured claim, benefit, ROI, and readiness results. |
 | timing and outcome fields | Supports session metrics and intervention tracking. |
+
+### Chat and Voice conversation channel
+
+The product conversation endpoint is authenticated `WS /ws/conversation`.
+Customers and reps may use complete Chat or Voice experiences; the
+backward-compatible `WS /ws/voice` route accepts both roles. Each accepted
+socket creates one ADK session under the authenticated user ID and begins in
+`chat` mode. A mode change does not create a new session, so caller identity,
+ROI status, intent history, and structured specialist findings remain
+available. Starting in Chat is a default, not a fallback designation.
+
+Both separate frontends may initially select Chat and must not request
+microphone permission or send microphone frames until the user explicitly
+selects Voice. Chat must support complete typed turns and agent responses.
+Voice must support complete microphone input, transcripts, and spoken AI
+responses for customers and reps. Switching back to Chat must stop microphone
+capture and queued playback while leaving the socket and session active.
+
+Current implementation: `backend/src/api/voice.py` sets
+`agent_audio_enabled` for both Voice-capable roles. Audio frames are emitted
+only while Voice mode is active; Chat retains transcripts but suppresses audio.
+The frontend may still choose whether playback fits a particular rep workflow.
+
+#### Browser-to-server frames
+
+| Frame | Status | Meaning |
+|---|---|---|
+| `{"type":"text","text":"..."}` | Implemented | Sends validated typed input in either mode. Text is trimmed, must be non-empty, and is limited to 4,000 characters. |
+| `{"type":"set_mode","mode":"chat"}` | Implemented | Selects text-only presentation without resetting the session. |
+| `{"type":"set_mode","mode":"voice"}` | Implemented for customers and reps | Enables full microphone input and spoken-response output for the same session. |
+| Binary | Implemented for customers and reps in Voice only | Raw signed PCM16 little-endian, mono, 16 kHz microphone audio. Audio sent while Chat is active is rejected with `voice_mode_required`. |
+| `{"type":"end_turn"}` | Deferred | Not used while the live model uses automatic activity detection. Add only with an explicitly configured push-to-talk flow. |
+
+#### Server-to-browser frames
+
+| Frame | Meaning |
+|---|---|
+| `session_started` | Announces `session_id`, initial `mode: "chat"`, `summary_url`, `agent_audio_enabled`, and the input/output audio formats before the first turn. |
+| `mode_changed` | Confirms the active `chat` or `voice` mode. |
+| Binary | Raw signed PCM16 little-endian, mono, 24 kHz agent audio; target behavior emits it in Voice mode for customers and reps. Current code emits it only when `agent_audio_enabled` is true and incorrectly disables that flag for reps. |
+| `user_transcript` | Caller transcript fragment produced by live audio transcription. |
+| `agent_transcript` | Agent response transcript fragment; this is the visible response in Chat mode. |
+| `interrupted` | Indicates caller barge-in; the frontend must immediately stop queued playback. |
+| `turn_complete` | Marks the end of a response and repeats `session_id` plus `summary_url` so structured cards can refresh. |
+| `error` | Returns a user-safe code, message, and retryable flag. Implemented codes are `invalid_message`, `voice_forbidden`, `voice_mode_required`, `session_initialization_failed`, and `live_model_unavailable`; exception details are never sent to the browser. |
+
+The conversation runner uses the configured audio-native live model and keeps
+the same deterministic orchestrator tools in both modes. Chat renders the full
+agent response as text; Voice renders transcripts and the full agent response
+as audio for either conversational role. The existing `/run` and `/run_sse` endpoints remain
+available as manager-only ADK developer channels, not customer or rep product
+APIs.
+
+Structured claim, benefit, ROI, readiness, and notification facts are not
+duplicated into WebSocket `domain_result` messages. The frontend uses the
+emitted `summary_url` and `GET /api/sessions/{session_id}/summary`; an
+incomplete summary exists as soon as `session_started` is emitted. Add direct
+domain-result frames only if measured latency proves the summary fetch is
+insufficient. Customers may fetch only summaries whose `auth_user_id` matches
+their account; reps and managers may fetch any current in-process summary.
+
+Current channel configuration:
+
+| Use | Model setting | Location setting |
+|---|---|---|
+| Standalone text endpoints | `MODEL_NAME` (`gemini-3.5-flash` default) | `GOOGLE_CLOUD_LOCATION` (`us` default) |
+| Chat / Voice conversation socket | `LIVE_MODEL_NAME` (`gemini-live-2.5-flash-native-audio` default) | `LIVE_MODEL_LOCATION` (`us-central1` default) |
+| Voice | `LIVE_VOICE_NAME` (`Aoede` default) | Uses the live-model location |
+
+The live channel publishes `session_started` and `session_completed` events
+with conversation metadata. Session completion conservatively does not infer
+resolution, repeat contact, or human escalation merely from socket closure.
+The customer/rep static `/demo` page remains a legacy Voice-first validation
+surface with optional typed input: its Start call action immediately sends
+`set_mode: "voice"` and obeys `agent_audio_enabled`. It has no Chat/Voice mode
+selector and is not the final customer or rep frontend. Its typed input does not
+make Chat a fallback; the final role-specific frontend must expose Chat as a
+complete, independently usable mode.
+
+Voice clients must request mono audio with echo cancellation and noise
+suppression, capture through an `AudioWorklet`, downsample to 16 kHz, and encode
+signed PCM16 little-endian frames. In Voice mode, playback
+must decode 24 kHz PCM16, schedule buffers without overlap or gaps, track active
+sources, and stop all queued audio on `interrupted`, mode change to Chat,
+disconnect, or session end for both customers and reps.
+
+Implementation references:
+
+- `backend/src/api/voice.py` — conversation route, session lifecycle, mode
+  gating, ADK live runner pumps, summaries, and safe failures
+- `backend/src/auth/` and `backend/src/api/auth.py` — users, sessions,
+  capability mapping, bootstrap, HTTP/WebSocket guards, and auth APIs
+- `backend/src/models/voice.py` — validated client and server frame contracts
+- `backend/tests/test_voice_api.py` — Chat default, bidirectional mode switching,
+  audio gating, transcript delivery, summary correlation, and failure tests
+- `backend/static/index.html` — minimal legacy voice adapter only
 
 ### Events
 
@@ -310,6 +569,12 @@ Readiness and intervention events must include:
 ## 9. Grounding, safety, and reliability
 
 - All demo records are synthetic; no real PHI is stored or displayed.
+- Authentication and role checks are enforced by HTTP/WebSocket backend guards,
+  never only through hidden frontend navigation.
+- Passwords use Argon2 hashes, session tokens are stored only as SHA-256 hashes,
+  and passwords, cookies, and raw tokens are excluded from logs.
+- Demo credentials and the SQLite provider are hackathon-only; they are not an
+  enterprise healthcare identity system.
 - The model does not invent claim facts, denial reasons, readiness factors,
   coverage rules, cost amounts, provider availability, or timelines.
 - Every member-facing result identifies its grounding record or source.
@@ -321,15 +586,56 @@ Readiness and intervention events must include:
 - Sentinel remains asynchronous and cannot block the caller response.
 - CSV-backed benefits remain available if BigQuery is unavailable, and the
   result reports its data source.
-- Every live-model workflow has a deterministic or typed fallback.
+- Every live-model workflow has a deterministic recovery path. Chat and Voice
+  remain first-class modes; neither is labeled as the other's fallback.
 
 ## 10. Prioritized implementation roadmap
 
 Each feature below is an independent checkpoint. Complete and verify one before
 starting the next.
 
+### Feature 0 — Role-based authentication foundation
+
+- **Status:** ✅ Complete
+- **Priority:** P0
+- **Depends on:** FastAPI application entrypoint and the existing HTTP/WebSocket
+  routes
+- **Purpose:** establish one authenticated identity and server-enforced role
+  decision before role-specific pages are added.
+
+Completed deliverables:
+
+- [x] `manager`, `customer`, and `rep` roles with explicit capabilities
+- [x] shared local SQLite file for users, sessions, synthetic reps, call history,
+  and intervention workflow, with tracked schemas and deterministic seeds
+- [x] Argon2 password verification and opaque hashed session tokens
+- [x] idempotent `uv run python -m src.operations.bootstrap` that applies auth
+  and operations setup to the same configured database
+- [x] `POST /api/auth/login`, `GET /api/auth/me`, and
+  `POST /api/auth/logout`
+- [x] eight-hour `HttpOnly`, `SameSite=Lax`, deployment-configurable `Secure`
+  cookie
+- [x] disabled-by-default local auth bypass with explicit synthetic role,
+  allowed-origin enforcement, and startup warning
+- [x] allowed-origin enforcement and removal of wildcard CORS
+- [x] HTTP and WebSocket `401`/`403` and `4401`/`4403` behavior
+- [x] manager-only operations and ADK developer surfaces
+- [x] customer Chat/Voice, spoken AI audio, and owned-summary access
+- [x] rep Chat/Voice access, transcripts, and authenticated identity in ADK
+  session state
+- [x] isolated auth, role-matrix, ownership, origin, bootstrap, and integration
+  tests
+
+**Feature complete when:** a seeded user can log in, receive only the declared
+capabilities, access only authorized HTTP/WebSocket surfaces, and log out with
+the session revoked. **Verified complete.**
+
+**Safe stopping point:** consume the auth APIs directly until the separate
+login and role-specific frontend pages are implemented.
+
 ### Feature 1 — Standalone Claim Readiness service
 
+- **Status:** ✅ Complete
 - **Priority:** P0
 - **Depends on:** existing claims model and exact-claim repository
 - **Purpose:** create the proactive capability without introducing orchestration
@@ -354,6 +660,7 @@ No orchestrator, event, Sentinel, or frontend work is required.
 
 ### Feature 2 — Readiness tool in the existing orchestrator
 
+- **Status:** ✅ Complete
 - **Priority:** P0
 - **Depends on:** Feature 1
 - **Purpose:** make readiness available through the current text and voice agent
@@ -375,6 +682,7 @@ existing ADK or `/demo` surface. Benefits and unified ROI may remain standalone.
 
 ### Feature 3 — Shared session context and ROI gate
 
+- **Status:** ✅ Complete
 - **Priority:** P0
 - **Depends on:** existing member and ROI data; does not require Feature 2
 - **Purpose:** establish one safe disclosure decision for every specialist.
@@ -396,6 +704,7 @@ even if Benefits and Readiness are invoked separately.
 
 ### Feature 4 — Unified Claim and Benefits orchestration
 
+- **Status:** ✅ Complete
 - **Priority:** P0
 - **Depends on:** Feature 3 and the existing Claim Story and Benefits modules
 - **Purpose:** support a safe multi-intent conversation.
@@ -416,6 +725,7 @@ Claim Story, Benefits Q&A, and ROI.
 
 ### Feature 5 — Prevention event contracts
 
+- **Status:** ✅ Complete
 - **Priority:** P0
 - **Depends on:** Feature 1; orchestration is optional
 - **Purpose:** make proactive actions observable without claiming causal outcomes.
@@ -436,6 +746,7 @@ test. Sentinel integration is not required yet.
 
 ### Feature 6 — Structured session-summary API
 
+- **Status:** ✅ Complete
 - **Priority:** P0
 - **Depends on:** session state from Features 2–4, but may initially expose only
   the findings that exist
@@ -447,15 +758,17 @@ Deliverables:
 - read-only `GET /api/sessions/{session_id}/summary`
 - claim, benefits, ROI, and readiness finding slots
 - not-found and incomplete-session behavior
+- customer ownership checks with rep/manager cross-session access
 - API tests
 
 **Feature complete when:** a caller session can be retrieved as validated JSON.
 
 **Safe stopping point:** use the endpoint directly or render its JSON in the
-existing fallback page. WebSocket `domain_result` messages are unnecessary.
+existing validation page. WebSocket `domain_result` messages are unnecessary.
 
 ### Feature 7 — Metrics methodology and intervention metric
 
+- **Status:** ✅ Complete
 - **Priority:** P0
 - **Depends on:** existing metrics code and Feature 5 events
 - **Purpose:** make the business-value panel transparent and defensible.
@@ -463,21 +776,31 @@ existing fallback page. WebSocket `domain_result` messages are unnecessary.
 Deliverables:
 
 - explicit synthetic `MetricsBaseline`
-- documented AHT, FCR, repeat-contact, ROI-gap, and intervention formulas
+- documented live Sentinel AHT, FCR, repeat-contact, ROI-gap, and intervention
+  formulas
 - replace **Preventable denials caught** with **Corrective interventions
   recorded**
 - count an intervention only when the expected readiness and intervention
   events exist for the same claim
-- unit tests for each formula and missing-event case
+- persisted, deterministic synthetic call history generated from 26 base-week
+  cohorts in the shared SQLite file without modifying or replacing supplied
+  CSV/BigQuery records
+- separate follow-up rows and an inclusive seven-day mature-cohort calculation
+  for persisted FCR and repeat-contact trends
+- persisted automated/manual routing, four synthetic rep accounts with manual
+  assignments, and identified/recommended/recorded intervention workflow rows
+- idempotency, data-integrity, formula, boundary, and missing-event tests
 
 **Feature complete when:** a deterministic event sequence produces a labeled
-metrics snapshot with no unsupported causal claim.
+live metrics snapshot and the persisted synthetic history produces repeatable,
+chart-ready trend calculations with no unsupported causal claim.
 
 **Safe stopping point:** show metrics as JSON, test output, or through the
 existing Streamlit renderer.
 
 ### Feature 8 — Notification preview
 
+- **Status:** ✅ Complete
 - **Priority:** P0
 - **Depends on:** Feature 1; Feature 6 is preferred for UI delivery
 - **Purpose:** make proactive assistance visible with minimal channel risk.
@@ -498,6 +821,7 @@ email, and portal delivery remain future work.
 
 ### Feature 9 — Sentinel runtime integration
 
+- **Status:** ✅ Complete
 - **Priority:** P1
 - **Depends on:** Feature 5; Feature 7 recommended
 - **Purpose:** connect existing monitoring code to live application events.
@@ -519,10 +843,12 @@ Initial scope:
 the operational APIs expose that change.
 
 **Safe stopping point:** use API JSON or the existing Streamlit dashboard.
-A React dashboard is not required.
+A separate frontend dashboard is not required for this checkpoint.
 
 ### Feature 10 — Minimal operations dashboard
 
+- **Status:** ✅ Complete — live snapshot and persisted backend contract;
+  five-tab P0 frontend pending
 - **Priority:** P1
 - **Depends on:** Feature 9
 - **Purpose:** make the event and metric story judge-visible.
@@ -535,18 +861,29 @@ Deliverables:
 - labeled baseline assumptions
 - alert evidence and recommended action
 - empty state
+- manager-only page and operational API authorization
+- chart-ready `GET /api/operations/dashboard` response with inclusive date
+  filters and `week`/`month` buckets
+- default range ending on the latest completed period while preserving the
+  later observation cutoff needed for mature repeat-contact cohorts
+- automated/manual volume, per-rep manual workload, and an
+  identified/recommended/recorded intervention funnel
+- frontend contract with exact fields, page mappings, TypeScript types,
+  loading/error/empty behavior, and safe metric language
 
 Use the fastest reliable presentation layer. Enhance the existing Streamlit
 renderer before starting a new React dashboard unless React is already stable.
 
-**Feature complete when:** the dashboard can trace displayed values to the demo
-event sequence.
+**Feature complete when:** the live dashboard can trace displayed values to the
+demo event sequence and the persisted manager endpoint can trace every chart
+value to the labeled deterministic SQLite history.
 
 **Safe stopping point:** present the Streamlit or simple HTML dashboard.
 Advanced filters and real-time push are not required.
 
 ### Feature 11 — Expanded golden-path demo
 
+- **Status:** ✅ Complete with deterministic fallback
 - **Priority:** P1
 - **Depends on:** Features 1–10 as available
 - **Purpose:** connect the completed independent features into one persuasive
@@ -554,8 +891,8 @@ Advanced filters and real-time push are not required.
 
 Script:
 
-1. Show the labeled baseline.
-2. Start a call about a denied claim.
+1. Authenticate as a manager and show the labeled baseline.
+2. Authenticate as a rep and start a call about a denied claim.
 3. Demonstrate ROI handling.
 4. Deliver the grounded claim story.
 5. Answer the related benefit question.
@@ -563,14 +900,28 @@ Script:
 7. Detect missing required prior authorization.
 8. Show the notification preview.
 9. Record the corrective intervention.
-10. Show the resulting event, alert, and metric update.
+10. Return to the manager view and show the resulting event, alert, and metric
+    update.
+11. Run the proactive population scan and show the prioritized rep work item.
+12. Show the metadata-only specialist/fallback trace and offline quality result.
 
 Reliability requirements:
 
 - fixed synthetic IDs
+- reproducible synthetic demo users from the tracked auth seed
 - cached or deterministic fallback responses
-- typed fallback for voice
+- complete Chat-mode and Voice-mode paths, plus a deterministic offline
+  contingency when live-model access is unavailable
 - screenshot or video backup
+
+Rating-5 extension after Features 12–15:
+
+1. Show the latest versioned evaluation result before the interaction.
+2. Trigger the readiness scan and open the resulting prioritized rep work item.
+3. Complete the grounded action through either first-class Chat or Voice.
+4. Show the typed ADK specialist handoffs and grounding trace.
+5. Return to the manager view and show the work-item progression, intervention
+   funnel, and unchanged synthetic-data disclosures.
 
 **Feature complete when:** the script succeeds repeatedly in the presentation
 environment and each displayed result can be traced to source data.
@@ -579,52 +930,187 @@ environment and each displayed result can be traced to source data.
 features as consecutive deterministic demonstrations rather than pretending
 they form one live transaction.
 
-### Feature 12 — Minimal React caller and dashboard application
+### Feature 12 — Role-specific frontend integration
 
-- **Priority:** P2
-- **Depends on:** stable backend APIs; detailed design is in
-  [Frontend and Voice Plan](frontend_voice_plan.md)
-- **Purpose:** improve presentation without changing domain behavior.
+- **Status:** ⬜ Pending — rating-5 scoring gate
+- **Priority:** P0
+- **Depends on:** Feature 0 plus the implemented conversation, session-summary,
+  events, alerts, and metrics APIs; rep Voice audio parity is part of this gate
+- **Purpose:** expose the implemented capabilities through distinct customer,
+  representative, and manager experiences without changing domain or
+  authorization behavior.
 
 Minimum scope:
 
-- `/call` and `/dashboard`
-- voice parity with `/demo`
-- typed fallback
-- essential Claim Story, Benefits, ROI, Readiness, and notification cards
-- metric tiles and alert list
+- [ ] `/login` using the auth APIs and the returned role/capability contract
+- [ ] customer page with equal first-class Chat and Voice controls plus spoken
+  AI playback in Voice
+- [ ] rep page with a help-needed queue plus equal first-class Chat and Voice
+  controls with spoken AI playback in Voice
+- [ ] manager page with Overview, AHT, FCR, Repeat Contact Rate, and Denial
+  Intervention tabs backed by the documented persisted-dashboard contract
+- [ ] capability-based navigation that still relies on backend enforcement for
+  every protected HTTP/WebSocket action
+- [x] dedicated rep help-queue projection/API that does not expose the
+  manager-only metrics/dashboard contract
+- [ ] `WS /ws/conversation` for customer and rep Chat/Voice without replacing
+  the active session
+- [ ] backend and frontend rep Voice parity: microphone input, transcripts, and
+  spoken AI output work for reps as they do for customers
+- [ ] no microphone permission request until the customer or rep explicitly
+  selects Voice
+- [ ] complete microphone cleanup and, where enabled, audio-queue cancellation
+  when the user returns to Chat or ends the session
+- [x] backend support for complete typed conversation, caller/agent transcripts, customer and rep
+  spoken playback in Voice, barge-in, and user-safe
+  authentication/disconnection/error states
+- [ ] `session_started` and `turn_complete` handling through the emitted
+  authorized `summary_url`
+- [ ] essential Claim Story, Benefits, ROI, Readiness, and notification cards
+  on customer/rep surfaces
+- [x] exact manager dashboard API response, chart/page mappings, TypeScript
+  types, metric caveats, and error/empty-state contract documented in
+  `assets/docs/dashboard_frontend_contract.md`
+- [ ] manager metric tiles, trend charts, manual/automated routing, per-rep
+  workload, intervention funnel, and live alert list backed only by
+  manager-authorized APIs
+- [ ] logout that revokes the backend session and returns to `/login`
 
-**Feature complete when:** React can complete the same fallback-supported demo
-without duplicating domain logic.
+The frontend must treat transcripts as conversational aids and use structured
+summary responses for factual cards. It must never determine claim, coverage,
+ROI, readiness, cost, escalation, or authorization facts. Notification content
+must remain visibly labeled `preview` and `not_sent`. A hidden route, button, or
+navigation item is presentation only; backend `401`/`403` and `4401`/`4403`
+responses remain authoritative.
 
-**Safe stopping point:** stop at any stable subset of routes or cards and retain
-`/demo` plus Streamlit for missing pieces.
+**Feature complete when:** each seeded role lands on only its intended surface;
+customers can use complete Chat or Voice, reps can see the help queue and use
+complete Chat or Voice, managers can see the dashboard, structured cards
+refresh after turns, and direct unauthorized route/API/socket attempts remain
+blocked.
+
+**Safe stopping point:** the frontend is a separate workstream; retain the
+customer/rep `/demo`, manager-only `/operations`, and direct auth APIs as
+backend-owned verification surfaces while it is integrated.
+
+### Feature 13 — Evaluation harness
+
+- **Status:** ✅ Offline/CI complete; credentialed live run opt-in
+- **Priority:** P2 high
+- **Depends on:** Grounded services and Feature 14 routing contract
+- **Purpose:** make quality and safety claims auditable rather than anecdotal.
+
+Implemented scope:
+
+- versioned synthetic corpus with stable case IDs
+- deterministic grounding, reviewed-rule, ROI, disclosure-safety, and routing-contract cases
+- per-case checks plus category and overall pass rates
+- p50/p95 execution latency reporting without a network-latency CI gate
+- stable JSON and Markdown report schemas
+- nonzero CLI exit when any category misses the configured threshold
+- GitHub Actions test and evaluation threshold job
+- explicit `--live` Vertex/ADK Claim Story case, excluded from offline CI
+
+The offline routing cases validate the declared routing contract; they do not
+measure live-model routing accuracy. The live case must be run with deployment
+credentials before presenting live ADK accuracy or latency.
+
+### Feature 14 — ADK specialist delegation and traces
+
+- **Status:** 🟨 Narrow implementation complete for Claim Story
+- **Priority:** P2 high
+- **Depends on:** Claim Story typed contracts and deterministic service
+- **Purpose:** demonstrate a genuine specialist handoff without weakening grounding.
+
+The root agent now invokes Claim Story through a real ADK `AgentTool`. The
+handoff validates `ClaimStoryResult`, compares immutable claim identity/status,
+amount, and grounding fields to the deterministic repository result, and falls
+back to the existing server-enforced tool on an exception, invalid output, or
+grounding mismatch. Traces persist only correlation, specialist, timestamps,
+latency, outcome, and an exception class; prompts, utterances, member facts, and
+full results are not stored.
+
+Runner-level offline tests prove the nested specialist executes and that a
+failed specialist returns the grounded fallback. ROI, Benefits, and Readiness
+remain deterministic specialist tools. They should not gain extra LLM hops
+until those hops demonstrate a tested product benefit.
+
+The root agent's pre-tool callback also emits one INFO-level console line for
+every route. It includes the logical specialist, tool name, ADK invocation ID,
+and session ID, but never logs tool arguments, prompts, results, or member facts.
+
+### Feature 15 — Proactive prevention queue
+
+- **Status:** ✅ Synthetic backend complete
+- **Priority:** P2 high
+- **Depends on:** Claim Readiness, auth/RBAC, shared SQLite
+- **Purpose:** turn reviewed readiness findings into prioritized rep work.
+
+Implemented scope:
+
+- bounded Pending/In Review list contract for CSV and BigQuery repositories
+- scanner reuse of the existing reviewed readiness rules only
+- deterministic high/warning priority and stable claim/rule tie-breaks
+- database uniqueness on `(claim_id, rule_id)` and scan idempotency keys
+- `open -> claimed -> resolved|dismissed` state machine with optimistic versions
+- atomic claim races and assignee-only terminal transitions
+- minimal rep projection with no member, transcript, summary, or manager-metric data
+- manager-only manual scan plus one idempotent startup scan
+- restart, retry, concurrency, role, conflict, and persistence tests
+
+Periodic multi-worker scheduling is intentionally not implemented because it
+would require leader election or distributed locking. Production batch timing,
+SLAs, external source writeback, and broader reviewed rules remain future work.
+
+### Feature 16 — Minimal durable runtime boundary
+
+- **Status:** 🟨 Credible single-instance boundary complete
+- **Priority:** P2
+- **Depends on:** Features 13–15
+- **Purpose:** show replaceable persistence and startup boundaries without adding enterprise infrastructure.
+
+SQLite now persists proactive work, scan/golden-path idempotency, metadata-only
+delegation traces, and structured operational events. A restart loads stored
+events and Sentinel processes each event ID once. `/health` remains liveness;
+the manager-only `/api/runtime/readiness` checks the runtime schema/database and
+reports the last completed scan without exposing paths or secrets. The backend
+also has a locked CI workflow and Docker health/start command.
+
+This is not a distributed runtime. ADK live sessions and structured session
+summaries remain process-local, and no claim is made about multi-worker
+scheduling, Kafka, managed databases, or enterprise retention.
 
 ## 11. Stretch features requiring refinement
 
-Implement these only after the full P0 checkpoint is stable:
+These are the remaining **P2** stretch items. Implement them only after Features
+12–16 and the deterministic contingency path are stable:
 
 | Stretch feature | Required refinement |
 |---|---|
-| Population-wide pending-claim scan | Add a repository list/query method and decide batch timing, deduplication, and alert thresholds. |
 | Provider/CPT/risk-factor aggregation | Ensure enough synthetic events exist to make grouping meaningful. |
 | Referral-based risk bands | Add reviewed service-specific referral requirements; do not infer from weak correlation. |
 | Modifier-based readiness rule | Add or seed eligible synthetic examples before claiming it is demonstrated. |
 | Diagnosis/CPT risk | Requires a reviewed compatibility table. |
 | WebSocket `domain_result` messages | Implement only if the session-summary endpoint is insufficient. |
 | Advanced dashboard filters and live push | Add after core alerts and metrics are stable. |
-| Complete responsive and accessible React polish | Do not trade away the complete workflow for surface polish. |
+| Production design-system polish | Add only after the responsive and accessible Feature 12 workflow is complete and tested. |
 
 ## 12. Metrics methodology
 
 | Metric | Baseline | Prototype value | Interpretation |
 |---|---|---|---|
-| AHT | Labeled synthetic assumption | Mean duration of completed demo sessions | Demonstrates the calculation path, not a production reduction |
-| FCR | Labeled synthetic assumption | Resolved without repeat contact or human escalation | Synthetic workflow outcome |
-| Repeat-contact rate | Labeled synthetic assumption | Separate sessions for the same member and claim within the configured window | Event-based detection |
+| AHT | Labeled synthetic assumption | Live: mean duration of completed observed sessions. Persisted dashboard: mean duration of all selected call rows. | Demonstrates the calculation path, not a production reduction |
+| FCR | Labeled synthetic assumption | Live: resolved without repeat contact or human escalation. Persisted dashboard: resolved mature initial contacts with no same-member/same-claim follow-up in the inclusive seven-day window. | Synthetic workflow outcome; persisted denominator excludes immature contacts |
+| Repeat-contact rate | Labeled synthetic assumption | Live: separate sessions for the same member and claim within the configured window. Persisted dashboard: mature initial contacts with a same-member/same-claim follow-up within seven days. | Follow-ups are separate persisted rows, not a generated flag |
 | ROI-gap rate | No production baseline required | Unique ROI-gap sessions divided by observed sessions | Valid for the demo event population |
 | At-risk claims identified | Zero in the manual comparison | Eligible claims matching reviewed readiness rules | Rule-match count, not predicted denials |
-| Corrective interventions recorded | Zero in the manual comparison | Documented corrective actions linked to readiness events | Does not prove a denial was prevented |
+| Corrective interventions recorded | Zero in the manual comparison | Live: documented corrective actions linked to readiness events. Persisted dashboard: distinct recorded claims in the intervention funnel. | Does not prove a denial was prevented; no synthetic final adjudication outcome exists |
+| Routing accuracy | Versioned Feature 13 corpus | Correct specialist handoffs divided by evaluated routing cases | Evaluation evidence, not production traffic accuracy |
+| Grounded-fact accuracy | Versioned Feature 13 corpus | Expected supported facts returned without unsupported additions | Report exact case failures and corpus version |
+| ROI safety | Required 100% on unauthorized-disclosure cases | Correct refusal or safe next step for every restricted case | A regression blocks the scoring-gate checkpoint |
+| Unsupported-answer refusal | Versioned Feature 13 corpus | Unsupported cases that refuse, clarify, or escalate instead of inventing | Must distinguish safe refusal from incomplete usefulness |
+| Readiness-rule accuracy | Reviewed labeled fixtures only | Rule outputs matching reviewed expected evidence and action | Does not validate unreviewed clinical compatibility rules |
+| Interaction latency | No business baseline implied | End-to-end and per-agent distribution by execution environment | Separate offline deterministic and credentialed model runs |
 
 ## 13. Presentation and collaboration plan
 
@@ -633,9 +1119,9 @@ Replace role placeholders with team names before the final rehearsal:
 | Time | Owner | Content |
 |---:|---|---|
 | 0:00–1:00 | Problem lead | Call-center pain, stakeholders, and target metrics |
-| 1:00–2:00 | Architecture lead | ADK orchestration, deterministic specialists, data boundaries, and Sentinel |
-| 2:00–5:00 | Demo lead | ROI, Claim Story, Benefits Q&A, Claim Readiness, and notification preview |
-| 5:00–6:00 | Operations lead | Sentinel alerts, metrics methodology, and evidence trace |
+| 1:00–2:00 | Architecture lead | Authentication/RBAC, typed ADK specialist delegation, deterministic services, trace evidence, and durable boundaries |
+| 2:00–5:00 | Demo lead | First-class Chat/Voice, ROI, Claim Story, Benefits, proactive queue, Claim Readiness, and recorded action |
+| 5:00–6:00 | Operations lead | Manager trends, prevention funnel, agent trace, evaluation quality/safety results, and honest limitations |
 | 6:00–7:00 | Closing lead | Business value, limitations, enterprise path, and questions |
 
 Each owner must know the fallback path for voice, model access, frontend, and
@@ -645,6 +1131,9 @@ dashboard failures.
 
 Present these as the enterprise path rather than hackathon commitments:
 
+- enterprise OIDC/SSO identity provider replacing local password verification
+- MFA, account recovery, login rate limiting, managed secrets, and durable auth
+  audit retention
 - trained and independently validated denial prediction model
 - real outbound SMS, email, and portal delivery
 - complete identity verification and ROI submission workflow
@@ -654,7 +1143,7 @@ Present these as the enterprise path rather than hackathon commitments:
 - production EHR, claims, CRM, and provider-system integrations
 - enterprise audit, retention, access control, security, and observability
 - controlled outcome evaluation proving whether interventions prevent denials
-- full React product polish and advanced operational analytics
+- production design-system expansion and advanced operational analytics
 
 These should replace adapters at the model, channel, client, event, and storage
 boundaries without changing the grounded specialist contracts.

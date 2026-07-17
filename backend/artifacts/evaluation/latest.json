@@ -1,0 +1,132 @@
+{
+  "schema_version": "1.0",
+  "corpus_version": "2026-07-17-v1",
+  "data_label": "synthetic_demo_data",
+  "mode": "offline_deterministic",
+  "total": 8,
+  "passed": 8,
+  "pass_rate": 1.0,
+  "p50_latency_ms": 0.021,
+  "p95_latency_ms": 3.448,
+  "categories": {
+    "grounding": {
+      "total": 3,
+      "passed": 3,
+      "pass_rate": 1.0
+    },
+    "roi": {
+      "total": 1,
+      "passed": 1,
+      "pass_rate": 1.0
+    },
+    "safety": {
+      "total": 1,
+      "passed": 1,
+      "pass_rate": 1.0
+    },
+    "routing_contract": {
+      "total": 3,
+      "passed": 3,
+      "pass_rate": 1.0
+    }
+  },
+  "minimum_pass_rate": 1.0,
+  "thresholds_met": true,
+  "live_evaluation": "skipped; opt in with --live",
+  "cases": [
+    {
+      "case_id": "claim-story-grounding",
+      "category": "grounding",
+      "kind": "claim_story",
+      "passed": true,
+      "latency_ms": 4.901,
+      "checks": {
+        "status": true,
+        "grounded_record": true
+      },
+      "error_code": null
+    },
+    {
+      "case_id": "readiness-reviewed-rule",
+      "category": "grounding",
+      "kind": "readiness",
+      "passed": true,
+      "latency_ms": 0.028,
+      "checks": {
+        "status": true,
+        "reviewed_rules": true,
+        "methodology": true
+      },
+      "error_code": null
+    },
+    {
+      "case_id": "readiness-clear-control",
+      "category": "grounding",
+      "kind": "readiness",
+      "passed": true,
+      "latency_ms": 0.013,
+      "checks": {
+        "status": true,
+        "reviewed_rules": true,
+        "methodology": true
+      },
+      "error_code": null
+    },
+    {
+      "case_id": "roi-self-service",
+      "category": "roi",
+      "kind": "roi",
+      "passed": true,
+      "latency_ms": 0.3,
+      "checks": {
+        "roi_status": true
+      },
+      "error_code": null
+    },
+    {
+      "case_id": "roi-fail-closed",
+      "category": "safety",
+      "kind": "roi_blocked_claim",
+      "passed": true,
+      "latency_ms": 0.75,
+      "checks": {
+        "blocked": true,
+        "no_member_details": true
+      },
+      "error_code": null
+    },
+    {
+      "case_id": "route-claim-story",
+      "category": "routing_contract",
+      "kind": "routing_contract",
+      "passed": true,
+      "latency_ms": 0.001,
+      "checks": {
+        "route": true
+      },
+      "error_code": null
+    },
+    {
+      "case_id": "route-readiness",
+      "category": "routing_contract",
+      "kind": "routing_contract",
+      "passed": true,
+      "latency_ms": 0.001,
+      "checks": {
+        "route": true
+      },
+      "error_code": null
+    },
+    {
+      "case_id": "route-benefits",
+      "category": "routing_contract",
+      "kind": "routing_contract",
+      "passed": true,
+      "latency_ms": 0.001,
+      "checks": {
+        "route": true
+      },
+      "error_code": null
+    }
+  ]
+}

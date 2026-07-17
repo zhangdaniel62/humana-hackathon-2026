@@ -12,6 +12,7 @@ from .claims import (
     DenialDetails,
     GroundingReference,
 )
+from .delegation import DelegationTrace
 from .readiness import (
     ClaimReadinessAssessment,
     ClaimReadinessRequest,
@@ -22,6 +23,26 @@ from .readiness import (
     ReadinessFactor,
     ReadinessFactorSeverity,
 )
+from .operations import (
+    InterventionFunnel,
+    NotificationPreview,
+    OperationsDashboard,
+    OperationsDashboardMetadata,
+    OperationsMetricSummary,
+    OperationsTrendPoint,
+    RepWorkload,
+    SessionSummary,
+)
+from .prevention import (
+    GoldenPathRequest,
+    QueueSnapshot,
+    RepWorkItem,
+    ScanRequest,
+    ScanResult,
+    WorkItemCandidate,
+    WorkItemStatus,
+    WorkItemTransitionRequest,
+)
 from .roi import ROICheckResult, ROIStatus
 from .sentinel import (
     AgentEvent,
@@ -30,10 +51,25 @@ from .sentinel import (
     EventType,
     MetricsBaseline,
     MetricsSnapshot,
+    ReadinessEventPayload,
     SentinelAlert,
     SentinelSnapshot,
 )
 from .session import MemberSessionContext
+from .voice import (
+    VoiceAudioFormat,
+    VoiceClientMessage,
+    VoiceError,
+    VoiceInterrupted,
+    VoiceModeChanged,
+    VoiceServerMessage,
+    VoiceSetModeInput,
+    VoiceSessionStarted,
+    VoiceTextInput,
+    VoiceTranscript,
+    VoiceTurnComplete,
+    voice_client_message_adapter,
+)
 
 __all__ = [
     "AgentEvent",
@@ -54,15 +90,45 @@ __all__ = [
     "ClaimTimelineEventType",
     "DataCompleteness",
     "DenialDetails",
+    "DelegationTrace",
     "EventType",
     "GroundingReference",
+    "GoldenPathRequest",
+    "InterventionFunnel",
     "MetricsBaseline",
     "MetricsSnapshot",
+    "NotificationPreview",
+    "OperationsDashboard",
+    "OperationsDashboardMetadata",
+    "OperationsMetricSummary",
+    "OperationsTrendPoint",
+    "QueueSnapshot",
+    "ReadinessEventPayload",
     "MemberSessionContext",
     "ReadinessFactor",
     "ReadinessFactorSeverity",
     "ROICheckResult",
     "ROIStatus",
+    "RepWorkload",
+    "RepWorkItem",
+    "ScanRequest",
+    "ScanResult",
     "SentinelAlert",
     "SentinelSnapshot",
+    "SessionSummary",
+    "VoiceAudioFormat",
+    "VoiceClientMessage",
+    "VoiceError",
+    "VoiceInterrupted",
+    "VoiceModeChanged",
+    "VoiceServerMessage",
+    "VoiceSetModeInput",
+    "VoiceSessionStarted",
+    "VoiceTextInput",
+    "VoiceTranscript",
+    "VoiceTurnComplete",
+    "WorkItemCandidate",
+    "WorkItemStatus",
+    "WorkItemTransitionRequest",
+    "voice_client_message_adapter",
 ]

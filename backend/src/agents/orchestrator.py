@@ -2,22 +2,46 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 from google.adk.agents import LlmAgent
 from google.adk.models.google_llm import Gemini
-from google.adk.tools import FunctionTool
+from google.adk.tools import BaseTool, FunctionTool, ToolContext
 
 from ..clients.claims import ClaimsRepository, create_claims_repository
+from ..delegation.store import InMemoryDelegationTraceStore, TraceSink
 from ..clients.member_records import (
     MemberRecordsClient,
     create_member_records_client,
 )
+from ..events import EventLog, event_log
 from ..services.claim_readiness import ClaimReadinessService
 from ..services.claim_story import ClaimStoryService
 from ..settings import Settings, settings as default_settings
 from .benefits import find_provider_tool, lookup_coverage
-from .claim_readiness import build_screen_claim_readiness_tool
+from .claim_readiness import (
+    build_record_corrective_intervention_tool,
+    build_screen_claim_readiness_tool,
+)
 from .claim_story import build_lookup_claim_story_tool
+from .claim_story import create_claim_story_agent
+from .delegation import TracedClaimStoryAgentTool
 from .session_context import build_establish_member_context_tool
+
+# Uvicorn's error logger is the server's configured console channel. A child
+# logger keeps these messages visible at INFO without adding an extra handler
+# that could duplicate them in tests or other hosts.
+logger = logging.getLogger("uvicorn.error.claim_assist.routing")
+
+ROUTED_AGENT_BY_TOOL = {
+    "establish_member_context": "roi_gatekeeper",
+    "lookup_claim_story": "claim_story_agent",
+    "screen_claim_readiness": "claim_readiness_agent",
+    "record_corrective_intervention": "claim_readiness_agent",
+    "lookup_coverage": "benefits_agent",
+    "find_provider": "benefits_agent",
+}
 
 VOICE_ORCHESTRATOR_INSTRUCTION = """
 You are the Claim Assist agent for a health-plan member-services prototype.
@@ -48,6 +72,8 @@ Conversation rules:
 - After confirmation, call screen_claim_readiness once for a readiness
   question. Describe it as a rules-based Claim Readiness screen, never as a
   prediction or probability.
+- When the caller confirms that a recommended readiness action was taken, call
+  record_corrective_intervention. Never say that recording it prevented a denial.
 - A readiness risk band is a rules classification, not a probability.
   Data completeness describes the inputs, not predictive confidence.
 - Never invent claim facts, coverage rules, denial reasons, readiness factors,
@@ -69,12 +95,36 @@ Response style:
   every field.
 """.strip()
 
+_default_trace_store = InMemoryDelegationTraceStore()
+
+
+def log_agent_route(
+    tool: BaseTool,
+    _args: dict[str, Any],
+    tool_context: ToolContext,
+) -> None:
+    """Log metadata for each root-agent routing decision.
+
+    Tool arguments and result payloads are deliberately excluded because they
+    can contain member or claim information.
+    """
+
+    logger.info(
+        "Agent route agent=%s tool=%s invocation_id=%s session_id=%s",
+        ROUTED_AGENT_BY_TOOL.get(tool.name, "unknown_specialist"),
+        tool.name,
+        tool_context.invocation_id,
+        tool_context.session.id,
+    )
+
 
 def create_voice_orchestrator(
     settings: Settings | None = None,
     claims_repository: ClaimsRepository | None = None,
     model_name: str | None = None,
     member_records_client: MemberRecordsClient | None = None,
+    events: EventLog | None = None,
+    traces: TraceSink | None = None,
 ) -> LlmAgent:
     """Create the root agent that fronts the caller channel.
 
@@ -82,11 +132,9 @@ def create_voice_orchestrator(
     ``model_name=settings.model_name`` for text channels, because live models
     reject the ``generateContent`` API that ``/run`` and ``/run_sse`` use.
 
-    The orchestrator narrates directly from the deterministic
-    ``lookup_claim_story`` tool rather than delegating to the structured
-    claim-story agent: nesting an output-schema agent as a tool forces its
-    LLM to re-emit the whole ClaimStoryResult JSON verbatim, which is
-    unreliable (truncation and repetition loops observed with flash models).
+    Claim Story uses a real ADK ``AgentTool`` specialist handoff. Its typed
+    output is checked against the deterministic repository result; exceptions,
+    malformed output, or grounding mismatches fail closed to the direct tool.
     """
 
     resolved_settings = settings or default_settings
@@ -98,6 +146,20 @@ def create_voice_orchestrator(
     )
     claim_story_service = ClaimStoryService(resolved_repository)
     readiness_service = ClaimReadinessService(resolved_repository)
+    resolved_events = events or event_log
+    resolved_traces = traces or _default_trace_store
+    direct_claim_tool = build_lookup_claim_story_tool(
+        claim_story_service,
+        enforce_member_context=True,
+        events=resolved_events,
+    )
+    claim_story_specialist = create_claim_story_agent(
+        resolved_settings,
+        resolved_repository,
+        agent_name="lookup_claim_story",
+        enforce_member_context=True,
+        events=resolved_events,
+    )
     if model_name is None:
         # The live model is only served in some regions (us-central1 for this
         # project), which may differ from GOOGLE_CLOUD_LOCATION, so give the
@@ -121,16 +183,21 @@ def create_voice_orchestrator(
         model=model,
         instruction=VOICE_ORCHESTRATOR_INSTRUCTION,
         mode="chat",
+        before_tool_callback=log_agent_route,
         tools=[
-            build_establish_member_context_tool(resolved_member_records),
-            build_lookup_claim_story_tool(
-                claim_story_service,
-                enforce_member_context=True,
+            build_establish_member_context_tool(resolved_member_records, resolved_events),
+            TracedClaimStoryAgentTool(
+                agent=claim_story_specialist,
+                fallback_tool=direct_claim_tool,
+                service=claim_story_service,
+                trace_sink=resolved_traces,
             ),
             build_screen_claim_readiness_tool(
                 readiness_service,
                 enforce_member_context=True,
+                events=resolved_events,
             ),
+            build_record_corrective_intervention_tool(events=resolved_events),
             FunctionTool(lookup_coverage),
             FunctionTool(find_provider_tool),
         ],

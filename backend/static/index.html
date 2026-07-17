@@ -39,6 +39,7 @@ const TARGET_RATE = 16000;
 const PLAYBACK_RATE = 24000;
 
 let ws = null, micCtx = null, playCtx = null, mediaStream = null;
+let agentAudioEnabled = true;
 let playingSources = [], nextStartTime = 0;
 let lastLine = { role: null, el: null };
 
@@ -122,9 +123,13 @@ async function startCall() {
   ws.binaryType = 'arraybuffer';
 
   ws.onmessage = (e) => {
-    if (e.data instanceof ArrayBuffer) { playPcm16(e.data); return; }
+    if (e.data instanceof ArrayBuffer) {
+      if (agentAudioEnabled) playPcm16(e.data);
+      return;
+    }
     const msg = JSON.parse(e.data);
-    if (msg.type === 'user_transcript') appendTranscript('you', msg.text);
+    if (msg.type === 'session_started') agentAudioEnabled = msg.agent_audio_enabled;
+    else if (msg.type === 'user_transcript') appendTranscript('you', msg.text);
     else if (msg.type === 'agent_transcript') appendTranscript('agent', msg.text);
     else if (msg.type === 'interrupted') stopPlayback();
     else if (msg.type === 'turn_complete') lastLine = { role: null, el: null };
@@ -136,6 +141,7 @@ async function startCall() {
     ws.onopen = resolve;
     ws.addEventListener('close', reject, { once: true });
   }).catch(() => { throw new Error('could not connect'); });
+  ws.send(JSON.stringify({ type: 'set_mode', mode: 'voice' }));
 
   mediaStream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
@@ -154,7 +160,9 @@ async function startCall() {
 
   stopBtn.disabled = false;
   sendBtn.disabled = false;
-  setStatus('Live — speak now.');
+  setStatus(agentAudioEnabled
+    ? 'Live — speak now. Agent replies will be spoken.'
+    : 'Live — speak now. Transcript-only agent replies for rep calls.');
 }
 
 function endCall() {

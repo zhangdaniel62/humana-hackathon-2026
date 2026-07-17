@@ -9,6 +9,7 @@ from google.adk.tools import FunctionTool, ToolContext
 from ..clients.member_records import MemberRecordsClient
 from ..events import EventLog, event_log
 from ..models import AgentEvent, EventType, MemberSessionContext, ROIStatus
+from ..services.session_summary import session_summary_store
 from .roi_gatekeeper import check_roi_authorization
 
 SESSION_ID_KEY = "session_id"
@@ -44,12 +45,14 @@ def record_intent(state: dict, intent: str) -> None:
     history = list(state.get(INTENT_HISTORY_KEY) or [])
     history.append(intent)
     state[INTENT_HISTORY_KEY] = history
+    session_summary_store.capture(state)
 
 
 def record_finding(state: dict, agent_key: str, payload: dict) -> None:
     findings = dict(state.get(AGENT_FINDINGS_KEY) or {})
     findings[agent_key] = payload
     state[AGENT_FINDINGS_KEY] = findings
+    session_summary_store.capture(state)
 
 
 def member_mismatch_payload(claim_id: str) -> dict:
@@ -146,6 +149,8 @@ def build_establish_member_context_tool(
                 )
             )
             state["_roi_gap_event_key"] = gap_key
+
+        session_summary_store.capture(state)
 
         return context.model_dump(mode="json")
 

@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 
 from google.adk.tools import FunctionTool
+from google.adk.tools.agent_tool import AgentTool
 
 from src.agents.claim_story import CLAIM_STORY_STATE_KEY
-from src.agents.orchestrator import create_voice_orchestrator
+from src.agents.orchestrator import create_voice_orchestrator, log_agent_route
 from src.clients.member_records import Authorization, FakeMemberRecordsClient
 from src.settings import Settings
 from tests.claim_fixtures import load_claim_rows
@@ -80,18 +82,48 @@ class VoiceOrchestratorTests(unittest.TestCase):
             "us-central1", agent.model.client_kwargs["location"]
         )
         self.assertEqual("chat", agent.mode)
-        self.assertEqual(5, len(agent.tools))
-        self.assertTrue(all(isinstance(tool, FunctionTool) for tool in agent.tools))
+        self.assertIs(log_agent_route, agent.before_tool_callback)
+        self.assertEqual(6, len(agent.tools))
+        self.assertIsInstance(agent.tools[0], FunctionTool)
+        self.assertIsInstance(agent.tools[1], AgentTool)
+        self.assertTrue(
+            all(isinstance(tool, FunctionTool) for tool in agent.tools[2:])
+        )
         self.assertEqual(
             [
                 "establish_member_context",
                 "lookup_claim_story",
                 "screen_claim_readiness",
+                "record_corrective_intervention",
                 "lookup_coverage",
                 "find_provider",
             ],
             [tool.name for tool in agent.tools],
         )
+
+    def test_route_log_identifies_agent_without_exposing_arguments(self) -> None:
+        context = SimpleNamespace(
+            invocation_id="invocation-1",
+            session=SimpleNamespace(id="session-1"),
+        )
+
+        with self.assertLogs(
+            "uvicorn.error.claim_assist.routing", level="INFO"
+        ) as captured:
+            result = log_agent_route(
+                SimpleNamespace(name="lookup_claim_story"),
+                {"claim_id": "CLM-SENSITIVE"},
+                context,
+            )
+
+        self.assertIsNone(result)
+        self.assertEqual(
+            "INFO:uvicorn.error.claim_assist.routing:Agent route "
+            "agent=claim_story_agent tool=lookup_claim_story "
+            "invocation_id=invocation-1 session_id=session-1",
+            captured.output[0],
+        )
+        self.assertNotIn("CLM-SENSITIVE", captured.output[0])
 
     def test_model_override_for_text_channels(self) -> None:
         agent = create_voice_orchestrator(
@@ -185,6 +217,7 @@ class VoiceOrchestratorTests(unittest.TestCase):
                 "claim_story",
                 "benefits_qa",
                 "claim_readiness",
+                "notification_preview",
             },
             set(context.state["agent_findings"]),
         )

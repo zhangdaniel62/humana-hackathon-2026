@@ -68,14 +68,42 @@ def roi_permits_detail(roi_status: str | None) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# events -- in-process event log
+# events -- compatibility view over the shared application EventLog
 #
-# Fire-and-forget; never in the request path. A list is the whole implementation
-# for the hackathon ("a Kafka topic in production"). Sentinel consumes these.
-# Swap `emit` for a real producer without touching any caller.
+# Fire-and-forget; never in the request path. Sentinel consumes the shared typed
+# stream; the view preserves the legacy list-style test seam without duplicating
+# storage.
 # ---------------------------------------------------------------------------
 
-EVENT_LOG: list[dict[str, Any]] = []
+class _LegacyEventView:
+    """List-like test compatibility without creating a second event store."""
+
+    def __init__(self) -> None:
+        self._start_index = 0
+
+    def __iter__(self):
+        from ..events import event_log
+
+        for typed_event in event_log.events[self._start_index :]:
+            if typed_event.agent != "benefits_qa":
+                continue
+            yield {
+                "timestamp": typed_event.timestamp.isoformat(),
+                "agent": typed_event.agent,
+                "event_type": typed_event.event_type.value,
+                "session_id": typed_event.session_id,
+                "member_id": typed_event.member_id,
+                "claim_id": typed_event.claim_id,
+                **typed_event.payload,
+            }
+
+    def clear(self) -> None:
+        from ..events import event_log
+
+        self._start_index = len(event_log.events)
+
+
+EVENT_LOG = _LegacyEventView()
 
 
 def emit(event_type: str, payload: dict[str, Any], *, agent: str = "benefits_qa") -> dict[str, Any]:
@@ -85,12 +113,31 @@ def emit(event_type: str, payload: dict[str, Any], *, agent: str = "benefits_qa"
         "event_type": event_type,
         **payload,
     }
-    EVENT_LOG.append(event)
+    from ..events import event_log
+    from ..models import AgentEvent, EventType
+
+    typed_payload = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"session_id", "member_id", "claim_id"}
+        and value is not None
+    }
+    event_log.publish_nowait(
+        AgentEvent(
+            session_id=str(payload.get("session_id") or "unknown"),
+            agent=agent,
+            event_type=EventType(event_type),
+            member_id=payload.get("member_id"),
+            claim_id=payload.get("claim_id"),
+            payload=typed_payload,
+        )
+    )
     return event
 
 
 def drain() -> list[dict[str, Any]]:
-    events, EVENT_LOG[:] = list(EVENT_LOG), []
+    events = list(EVENT_LOG)
+    EVENT_LOG.clear()
     return events
 
 
@@ -1476,9 +1523,9 @@ def _record(tool_context: ToolContext, answer: BenefitsAnswer) -> None:
     """Stash the deterministic answer so the card is assembled from data, not prose."""
     tool_context.state[StateKeys.LAST_LOOKUP] = answer.model_dump(mode="json")
 
-    findings = dict(tool_context.state.get(StateKeys.AGENT_FINDINGS) or {})
-    findings[AGENT_KEY] = answer.model_dump(mode="json")
-    tool_context.state[StateKeys.AGENT_FINDINGS] = findings
+    from .session_context import record_finding
+
+    record_finding(tool_context.state, AGENT_KEY, answer.model_dump(mode="json"))
 
 
 def lookup_coverage(service_query: str, tool_context: ToolContext) -> dict[str, Any]:
@@ -1542,6 +1589,10 @@ def lookup_coverage(service_query: str, tool_context: ToolContext) -> dict[str, 
             "plan_type": answer.plan_type,
             "match_type": answer.resolution.value,
             "answered_in_language": answer.language,
+            "covered": answer.covered,
+            "prior_auth_required": answer.prior_auth_required,
+            "grounded_on": answer.grounded_on,
+            "synthetic": True,
         },
     )
     return payload

@@ -80,6 +80,22 @@ class BigQueryClaimsRepositoryTests(unittest.TestCase):
 
         self.assertIsNone(repository.get_claim("CLM999999"))
 
+    def test_actionable_population_is_bounded_and_validated(self) -> None:
+        claim = claim_for_status(ClaimStatus.PENDING)
+        query_job = FakeQueryJob([claim.model_dump(mode="python")])
+        client = MagicMock()
+        client.query.return_value = query_job
+        repository = BigQueryClaimsRepository(build_test_settings(), client=client)
+
+        result = repository.list_actionable_claims(limit=10)
+
+        self.assertEqual([claim], result)
+        query, kwargs = client.query.call_args
+        self.assertIn("claim_status IN ('Pending', 'In Review')", query[0])
+        self.assertIn("ORDER BY claim_id", query[0])
+        self.assertEqual("limit", kwargs["job_config"].query_parameters[0].name)
+        self.assertEqual(10, query_job.max_results)
+
     def test_duplicate_rows_raise_data_integrity_error(self) -> None:
         claim = claim_for_status(ClaimStatus.PAID).model_dump(mode="python")
         client = MagicMock()
@@ -122,6 +138,18 @@ class OfflineClaimsRepositoryTests(unittest.TestCase):
         self.assertIsNotNone(claim)
         assert claim is not None
         self.assertEqual("MBR00087", claim.member_id)
+
+    def test_csv_actionable_population_is_stable_and_eligible(self) -> None:
+        claims = CsvClaimsRepository().list_actionable_claims(limit=7)
+
+        self.assertEqual(7, len(claims))
+        self.assertEqual(sorted(claim.claim_id for claim in claims), [
+            claim.claim_id for claim in claims
+        ])
+        self.assertTrue(all(
+            claim.claim_status in {ClaimStatus.PENDING, ClaimStatus.IN_REVIEW}
+            for claim in claims
+        ))
 
     def test_fallback_repository_uses_csv_when_primary_fails(self) -> None:
         primary = MagicMock()

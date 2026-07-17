@@ -165,8 +165,9 @@ Each of these is forced by the data, and each is load-bearing:
 
 ## Emitted events
 
-Appended to `benefits.agent.EVENT_LOG` (fire-and-forget, never in the request
-path):
+Published to the shared application `EventLog`; `benefits.agent.EVENT_LOG` is a
+read-only compatibility view used by legacy tests (fire-and-forget, never in
+the request path):
 
 - `coverage_question_answered` — `{session_id, member_id, cpt_code,
   matched_rule_id, plan_type, match_type, answered_in_language}`

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from google.adk.agents import LlmAgent
+from google.adk.models.base_llm import BaseLlm
 from google.adk.tools import FunctionTool, ToolContext
 from google.genai.types import GenerateContentConfig
 
 from ..clients.claims import ClaimsRepository, create_claims_repository
+from ..events import EventLog, event_log
+from ..models import AgentEvent, EventType
 from ..models.claims import ClaimStoryRequest, ClaimStoryResult
 from ..services.claim_story import ClaimStoryService
 from ..settings import Settings, settings as default_settings
@@ -47,8 +50,11 @@ def build_lookup_claim_story_tool(
     service: ClaimStoryService,
     *,
     enforce_member_context: bool = False,
+    events: EventLog | None = None,
 ) -> FunctionTool:
     """Build the deterministic claim-story lookup tool shared by agents."""
+
+    resolved_events = events or event_log
 
     def lookup_claim_story(
         claim_id: str,
@@ -85,6 +91,41 @@ def build_lookup_claim_story_tool(
         tool_context.state[CLAIM_STORY_STATE_KEY] = payload
         record_finding(tool_context.state, "claim_story", payload)
         record_intent(tool_context.state, "claim_story")
+        session_id = tool_context.state.get("session_id")
+        if session_id and story:
+            denial = story.get("denial")
+            if denial:
+                resolved_events.publish_nowait(
+                    AgentEvent(
+                        session_id=str(session_id),
+                        agent="claim_story",
+                        event_type=EventType.DENIAL_EXPLAINED,
+                        member_id=story["member_id"],
+                        claim_id=story["claim_id"],
+                        payload={
+                            "denial_code": denial["code"],
+                            "denial_reason": denial["reason"],
+                            "cause_category": denial["code"],
+                            "synthetic": True,
+                        },
+                    )
+                )
+            if payload["status"] == "needs_escalation":
+                resolved_events.publish_nowait(
+                    AgentEvent(
+                        session_id=str(session_id),
+                        agent="claim_story",
+                        event_type=EventType.ESCALATION_TRIGGERED,
+                        member_id=story["member_id"],
+                        claim_id=story["claim_id"],
+                        payload={
+                            "reason": payload["message"],
+                            "severity": "high",
+                            "recommended_action": "Route to a claims specialist.",
+                            "synthetic": True,
+                        },
+                    )
+                )
         return payload
 
     return FunctionTool(lookup_claim_story)
@@ -93,6 +134,11 @@ def build_lookup_claim_story_tool(
 def create_claim_story_agent(
     settings: Settings | None = None,
     repository: ClaimsRepository | None = None,
+    *,
+    model: str | BaseLlm | None = None,
+    agent_name: str = "claim_story_agent",
+    enforce_member_context: bool = False,
+    events: EventLog | None = None,
 ) -> LlmAgent:
     """Create a standalone, structured-output claim-story ADK agent."""
 
@@ -101,14 +147,20 @@ def create_claim_story_agent(
     service = ClaimStoryService(resolved_repository)
 
     return LlmAgent(
-        name="claim_story_agent",
+        name=agent_name,
         description=(
             "Explains the lifecycle and current outcome of one exact claim using "
             "grounded BigQuery facts."
         ),
-        model=resolved_settings.model_name,
+        model=model or resolved_settings.model_name,
         instruction=CLAIM_STORY_INSTRUCTION,
-        tools=[build_lookup_claim_story_tool(service)],
+        tools=[
+            build_lookup_claim_story_tool(
+                service,
+                enforce_member_context=enforce_member_context,
+                events=events,
+            )
+        ],
         input_schema=ClaimStoryRequest,
         output_schema=ClaimStoryResult,
         output_key=CLAIM_STORY_OUTPUT_KEY,

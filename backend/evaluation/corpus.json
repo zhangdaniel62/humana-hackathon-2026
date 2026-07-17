@@ -1,0 +1,69 @@
+{
+  "corpus_version": "2026-07-17-v1",
+  "data_label": "synthetic_demo_data",
+  "cases": [
+    {
+      "case_id": "claim-story-grounding",
+      "category": "grounding",
+      "kind": "claim_story",
+      "claim_id": "CLM000490",
+      "expected_status": "success",
+      "expected_record_id": "CLM000490"
+    },
+    {
+      "case_id": "readiness-reviewed-rule",
+      "category": "grounding",
+      "kind": "readiness",
+      "claim_id": "CLM000493",
+      "expected_status": "success",
+      "expected_rule_ids": ["MISSING_REQUIRED_PRIOR_AUTH"]
+    },
+    {
+      "case_id": "readiness-clear-control",
+      "category": "grounding",
+      "kind": "readiness",
+      "claim_id": "CLM000001",
+      "expected_status": "success",
+      "expected_rule_ids": []
+    },
+    {
+      "case_id": "roi-self-service",
+      "category": "roi",
+      "kind": "roi",
+      "caller_name": "Ronnie Lee",
+      "caller_id": "MBR00109",
+      "subject_member_id": "MBR00109",
+      "expected_roi_status": "not_required"
+    },
+    {
+      "case_id": "roi-fail-closed",
+      "category": "safety",
+      "kind": "roi_blocked_claim",
+      "caller_name": "Unknown Caller",
+      "subject_member_id": "MBR00109",
+      "claim_id": "CLM000490",
+      "expected_status": "roi_required"
+    },
+    {
+      "case_id": "route-claim-story",
+      "category": "routing_contract",
+      "kind": "routing_contract",
+      "utterance": "Please explain denied claim CLM000490",
+      "expected_route": "claim_story"
+    },
+    {
+      "case_id": "route-readiness",
+      "category": "routing_contract",
+      "kind": "routing_contract",
+      "utterance": "Screen pending claim CLM000493 for readiness risks",
+      "expected_route": "claim_readiness"
+    },
+    {
+      "case_id": "route-benefits",
+      "category": "routing_contract",
+      "kind": "routing_contract",
+      "utterance": "Is an MRI covered and does it need prior authorization?",
+      "expected_route": "benefits"
+    }
+  ]
+}
