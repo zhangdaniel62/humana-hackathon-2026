@@ -40,7 +40,7 @@ would not by itself prove real operational impact.
 | Category | Score | Confidence | Evidence and rationale |
 |---|---:|---|---|
 | Problem Understanding | **4/5** | High | The plan maps members, representatives, providers, supervisors, and operations users to concrete pain points. The implementation directly addresses claim explanation, benefits, ROI gaps, readiness, repeat contacts, AHT, FCR, and corrective interventions. Metric definitions explicitly distinguish mature seven-day cohorts and avoid claiming that an intervention prevented a denial. A 5 would require an even tighter presentation of root-cause prioritization and credible outcome validation, not only synthetic trends. |
-| Technical Ambition / Difficulty | **4/5** | High | The repository combines Google ADK, a live chat/voice WebSocket, deterministic grounded tools, BigQuery/CSV adapters, shared session context, ROI controls, structured summaries, role-based authentication, async Sentinel events, and persisted SQLite analytics. The active caller path is primarily one ADK root `LlmAgent` invoking specialist tools; specialist agent modules exist, but the live workflow is not yet exceptional multi-agent orchestration. Local SQLite and in-memory runtime state also cap the score below 5. |
+| Technical Ambition / Difficulty | **4/5** | High | The repository combines Google ADK, a live chat/voice WebSocket, a real typed Claim Story `AgentTool` handoff with grounded fallback, deterministic specialist tools, BigQuery/CSV adapters, shared context, ROI controls, a proactive rep queue, structured summaries, RBAC, durable event replay, Sentinel, and persisted SQLite analytics. The multi-agent path is intentionally narrow and the runtime remains single-instance, which caps the score below 5. |
 | Creativity and Innovation | **4/5** | Medium | Proactive claim readiness, ROI pre-screening, grounded notification previews, corrective-intervention events, and operational risk monitoring go beyond a generic chatbot. The workflow is inventive and proactive, but several headline capabilities closely follow the challenge prompt, and there is no validated predictive model or demonstrated final-adjudication prevention loop. |
 | Presentation and Collaboration | **3/5** | Low | There is a timed presentation plan, fixed-ID golden path, deterministic fallback, saved dashboard artifact, static voice demo, operations page, and a detailed frontend handoff. However, the role-specific product frontend is pending, the current operations page does not render the new trend dashboard, and presentation owners are placeholders. Collaboration quality cannot be established from repository evidence alone. |
 
@@ -64,7 +64,7 @@ would not by itself prove real operational impact.
 | Category | Score | Confidence | Evidence and rationale |
 |---|---:|---|---|
 | Solution Impact and Effectiveness | **3/5** | High | The system addresses all four target metric areas and demonstrates transparent calculations using labeled synthetic data. It shows credible potential, not measured improvement in real workflow conditions. There is no linked final adjudication outcome and therefore no demonstrated preventable-denial reduction. |
-| Initial AI Approach | **4/5** | High | The approach is grounded and responsible: deterministic domain services, typed outputs, exact-record lookup, ambiguity handling, ROI fail-closed behavior, claim-ID confirmation, safe escalation, and LLM narration through ADK. A 5 would benefit from explicit quality evaluation, retrieval/routing evaluation, calibrated confidence evidence, and stronger demonstrated multi-agent execution. |
+| Initial AI Approach | **4/5** | High | The approach is grounded and responsible: deterministic services, typed outputs, exact-record lookup, ambiguity handling, ROI fail-closed behavior, claim-ID confirmation, safe escalation, a real typed Claim Story handoff/fallback, and an eight-case offline evaluation harness with enforced safety/grounding/routing-contract thresholds. A 5 still requires credentialed live routing/narration evidence and broader validated specialist delegation. |
 | User Experience | **3/5** | High | Plain-language agent instructions, transcripts, safe next steps, structured summaries, a legacy Voice validation page, and an operations view support the primary workflow. The missing first-class role-specific Chat/Voice frontend, help queue, manager trend charts, and polished state handling prevent a 4. |
 | Feasibility / Reusability / Scalability | **4/5** | High | The code has modular services, Pydantic contracts, repository adapters, fallback data sources, server-side RBAC, deterministic seeds, and a passing automated suite. The current SQLite auth/analytics database, in-memory sessions/events, local credentials, and missing production integrations are appropriate hackathon boundaries but not enterprise-ready scale. |
 
@@ -83,7 +83,7 @@ would not by itself prove real operational impact.
 
 ## Strongest repository evidence
 
-1. The complete backend suite currently passes: **152 tests, 3 skipped, and
+1. The complete backend suite currently passes: **168 tests, 3 skipped, and
    216 subtests** in the local checkout.
 2. The fixed synthetic golden path exercises ROI, denied Claim Story, Benefits,
    Claim Readiness, a visibly unsent notification preview, intervention
@@ -107,22 +107,22 @@ would not by itself prove real operational impact.
 2. **The synthetic dashboard proves arithmetic, not impact.** Baselines are
    assumptions, and intervention recording is not connected to later claim
    adjudication.
-3. **The active orchestration is strong but not clearly a rating-5 multi-agent
-   system.** The root ADK agent mainly invokes deterministic specialist tools;
-   the presentation should describe that architecture precisely.
+3. **The active orchestration is intentionally narrow.** Claim Story is a real
+   typed ADK specialist handoff with a deterministic grounded fallback; ROI,
+   Benefits, and Readiness remain direct deterministic specialist tools. The
+   presentation should describe that boundary precisely.
 4. **Clinical/risk breadth is intentionally narrow.** Referral, modifier, and
    diagnosis/CPT rules are deferred until reviewed evidence exists.
-5. **Production boundaries remain visible.** Authentication and analytics are
-   local SQLite, while event/session state is in process; enterprise audit,
-   integrations, and distributed durability are future work.
+5. **Production boundaries remain visible.** Authentication, analytics, queue,
+   trace metadata, and events use local SQLite, while ADK sessions and session
+   summaries remain in process; enterprise audit, integrations, and distributed
+   durability are future work.
 6. **Presentation and collaboration are unverified.** The plan still needs
    named owners, rehearsed transitions, a concise metric story, and a tested
    fallback decision tree.
-7. **First-class Voice parity is incomplete.** Both roles can select Voice and
-   receive transcripts, but the current backend suppresses spoken AI output for
-   reps even though the product contract now requires complete Chat and Voice
-   for both roles. A credentialed live-model run also remains
-   environment-dependent.
+7. **Credentialed live quality remains environment-dependent.** Customer and
+   rep Voice parity is implemented, but the microphone-to-live-model path and
+   opt-in ADK evaluation still need judge-environment credentials.
 
 ## Highest-impact next actions
 
@@ -130,11 +130,11 @@ would not by itself prove real operational impact.
 |---:|---|---|
 | 1 | Implement and rehearse the role-specific frontend, especially the five-tab manager dashboard and rep help queue. | Largest improvement to Round 1 Presentation and Round 2 UX; also makes existing technical work visible. |
 | 2 | Turn the golden path into a tightly timed narrative that shows one pain point, one grounded action, and one defensible metric consequence at each step. Name owners and rehearse fallback transitions. | Improves Problem Understanding and Presentation without adding risky scope. |
-| 3 | Add an explicit evaluation slide or artifact: fixed test cases, grounding/ROI pass rates, unsupported-answer refusals, readiness-rule precision on reviewed fixtures, and latency where measured. | Strongest path from AI Approach 4 toward 5 and makes reliability claims auditable. |
-| 4 | Implement the population-wide pending-claim scan and provider/CPT/risk aggregation with deduplication and alert thresholds. | Raises Technical Ambition, Creativity, and expected Impact if the output is judge-visible. |
+| 3 | Run the opt-in ADK evaluation with judge-environment credentials and present it beside the 8/8 offline grounding/ROI/safety/routing-contract artifact. | Strongest remaining path from AI Approach 4 toward 5 without conflating deterministic and live quality. |
+| 4 | Wire the implemented prevention queue into the rep frontend and rehearse scan, atomic claim, grounded intervention, and resolution. | Makes the new proactive backend workflow judge-visible and operationally coherent. |
 | 5 | Add referral, modifier, and diagnosis/CPT rules only with reviewed compatibility data and focused counterexample tests. | Deepens problem understanding and AI responsibility; weak or invented rules would reduce validity. |
 | 6 | Add a clearly synthetic later-adjudication experiment only if its assumptions can be shown transparently; otherwise keep the current intervention-coverage language. | Could strengthen impact methodology, but must never be presented as observed denial prevention. |
-| 7 | Enable and test spoken AI output for rep Voice, verify complete customer/rep Chat and Voice behavior with judge-environment credentials, then finish a clean README runbook. | Resolves the product-contract mismatch and reduces demo failure and credibility risk. |
+| 7 | Verify complete customer/rep Chat and Voice behavior with judge-environment credentials, then finish a clean frontend/runbook handoff. | Reduces live-demo failure risk now that backend role parity is implemented. |
 
 ## Probability of advancing to Round 2
 
