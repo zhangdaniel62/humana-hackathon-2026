@@ -12,7 +12,9 @@ from .models import AuthUser, UserRole
 
 logger = logging.getLogger(__name__)
 
-_PUBLIC_PATHS = frozenset({"/health", "/version", "/api/auth/login"})
+_PUBLIC_PATHS = frozenset(
+    {"/health", "/version", "/api/auth/login", "/api/auth/member-demo"}
+)
 _MANAGER_EXACT_PATHS = frozenset(
     {
         "/",

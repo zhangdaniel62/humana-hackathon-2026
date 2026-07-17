@@ -143,6 +143,40 @@ def test_login_me_logout_and_cookie_contract(configured_auth_app, login_as) -> N
     assert client.get("/api/auth/me").status_code == 401
 
 
+def test_member_demo_starts_customer_session_without_credentials(
+    configured_auth_app,
+) -> None:
+    configured_auth_app.state.auth_settings = (
+        configured_auth_app.state.auth_settings.model_copy(
+            update={"enable_demo_seed": True}
+        )
+    )
+    client = TestClient(configured_auth_app)
+
+    response = client.post("/api/auth/member-demo")
+
+    assert response.status_code == 200
+    assert response.json()["user"] == {
+        "id": response.json()["user"]["id"],
+        "username": "customer",
+        "role": "customer",
+        "capabilities": ["chat", "voice"],
+    }
+    assert "httponly" in response.headers["set-cookie"].lower()
+    assert client.get("/api/auth/me").json() == response.json()
+
+
+def test_member_demo_is_unavailable_when_demo_seed_is_disabled(
+    configured_auth_app,
+) -> None:
+    client = TestClient(configured_auth_app)
+
+    response = client.post("/api/auth/member-demo")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Member demo access is unavailable"}
+
+
 @pytest.mark.parametrize(
     ("role", "metrics_status", "demo_status"),
     [

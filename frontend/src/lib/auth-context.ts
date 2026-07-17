@@ -21,6 +21,7 @@ export interface AuthContextValue {
   user: User | null
   loading: boolean
   signIn: (credentials: SignInCredentials) => Promise<User>
+  continueAsMember: () => Promise<User>
   signOut: () => Promise<void>
 }
 

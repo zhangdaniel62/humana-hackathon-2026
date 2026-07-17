@@ -60,6 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return authenticated
   }, [])
 
+  const continueAsMember = useCallback(async () => {
+    const response = await apiFetch<AuthResponse>('/api/auth/member-demo', {
+      method: 'POST',
+    })
+    const authenticated = toUser(response.user)
+    setUser(authenticated)
+    return authenticated
+  }, [])
+
   const signOut = useCallback(async () => {
     try {
       await apiFetch<void>('/api/auth/logout', { method: 'POST' })
@@ -69,8 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ user, loading, signIn, signOut }),
-    [user, loading, signIn, signOut],
+    () => ({ user, loading, signIn, continueAsMember, signOut }),
+    [user, loading, signIn, continueAsMember, signOut],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

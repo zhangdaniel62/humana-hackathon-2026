@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { hasCapability, useAuth } from '@/lib/auth-context'
+import { ThemeMenu } from '@/components/ThemeMenu'
 import { dashboardMetrics } from './metrics'
 import { TopBar } from './TopBar'
 import { UserMenu } from './UserMenu'
@@ -156,7 +157,8 @@ export function AppShell() {
             </ul>
           </nav>
           <div className="mt-auto">
-            <div aria-hidden="true" className="mx-2 mb-2 h-[0.5px] bg-border-primary" />
+            <ThemeMenu variant="row" placement="top start" />
+            <div aria-hidden="true" className="mx-2 my-2 h-[0.5px] bg-border-primary" />
             <UserMenu />
           </div>
         </aside>

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/big_h.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -10,6 +10,19 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
     />
+    <script>
+      ;(() => {
+        try {
+          const preference = localStorage.getItem('claim-assist-theme')
+          const systemTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          const theme = preference === 'light' || preference === 'dark' ? preference : systemTheme
+          document.documentElement.dataset.theme = theme
+          document.documentElement.style.colorScheme = theme
+        } catch {
+          // Light mode remains the no-storage fallback.
+        }
+      })()
+    </script>
     <title>Claim Assist</title>
   </head>
   <body>

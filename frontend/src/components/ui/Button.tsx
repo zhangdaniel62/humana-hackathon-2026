@@ -14,7 +14,7 @@ export interface ButtonProps extends Omit<AriaButtonProps, 'className'> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-accent text-white data-hovered:bg-accent-hover data-pressed:bg-accent-hover data-disabled:bg-bg-tertiary data-disabled:text-text-quaternary',
+    'bg-accent text-accent-foreground data-hovered:bg-accent-hover data-pressed:bg-accent-hover data-disabled:bg-bg-tertiary data-disabled:text-text-quaternary',
   secondary:
     'border border-border-primary bg-bg-secondary text-text-primary data-hovered:bg-bg-tertiary data-pressed:bg-bg-tertiary data-disabled:border-transparent data-disabled:bg-bg-secondary data-disabled:text-text-quaternary',
   ghost:

@@ -75,6 +75,18 @@ class AuthStore:
                 )
             return self._to_user(row)
 
+    def get_active_user(self, username: str) -> AuthUser | None:
+        """Resolve an active user without exposing or reusing its password."""
+
+        normalized = normalize_username(username)
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT id, username, role, is_active FROM users "
+                "WHERE username = ? AND is_active = 1",
+                (normalized,),
+            ).fetchone()
+        return self._to_user(row) if row is not None else None
+
     def create_user(
         self,
         username: str,

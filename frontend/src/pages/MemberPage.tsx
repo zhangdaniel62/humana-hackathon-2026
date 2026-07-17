@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { ToggleButton, ToggleButtonGroup } from 'react-aria-components'
 import { AlertCircle, LoaderCircle, MessageSquare, Mic } from 'lucide-react'
 import { Composer } from '@/components/conversation/Composer'
+import { ThemeMenu } from '@/components/ThemeMenu'
 import { ConversationSummary } from '@/components/conversation/ConversationSummary'
 import { ConversationTranscript } from '@/components/conversation/ConversationTranscript'
 import { Badge, Button, InfoTooltip, Panel, type StatusVariant } from '@/components/ui'
@@ -65,6 +66,7 @@ export function MemberPage() {
           </InfoTooltip>
         </div>
         <div className="ml-auto flex items-center gap-4">
+          <ThemeMenu />
           <Badge variant={badge.tone}>{badge.label}</Badge>
           <ToggleButtonGroup
             aria-label="Conversation mode"

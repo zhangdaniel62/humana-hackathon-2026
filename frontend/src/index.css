@@ -3,9 +3,8 @@
 /*
  * Design tokens — assets/docs/frontend_design/design_system.md §1–3, §6–7,
  * mirroring Linear per ref/linear-design-reference.md (no divergence).
- * Light theme values; chrome colors are the single hue 272 in lch at varying
- * lightness/chroma, so a dark theme can later be produced from the same
- * ramps with a dark base. Spacing stays Tailwind's default 4px scale (§2).
+ * Light values are declared here; the dark theme reuses the same semantic
+ * roles from a dark base. Spacing stays Tailwind's default 4px scale (§2).
  */
 @theme {
   --color-*: initial;
@@ -29,9 +28,10 @@
   --color-border-secondary: lch(92% 0.8 272);
   --color-border-tertiary: lch(94.5% 0.6 272);
 
-  /* §1 Accent — derived in-hue (blue-violet); one primary action per screen */
-  --color-accent: lch(48% 59 288);
-  --color-accent-hover: lch(43% 59 288);
+  /* Humana green: #78BE20 = lch(70.302% 75.459 122.015). */
+  --color-accent: lch(70.302% 75.459 122.015);
+  --color-accent-hover: lch(64% 71 122.015);
+  --color-accent-foreground: lch(15.5% 2.4 122.015);
 
   /* Chart second series — a muted in-hue neutral, deliberately not a second
      accent or status color. Validated against --color-bg-secondary for CVD
@@ -125,9 +125,51 @@
   }
 }
 
+/* The same semantic ramps from a near-black base. Components keep using the
+   token names above; only their resolved color values change. */
+html[data-theme='dark'] {
+  --color-bg-primary: lch(6% 0.5 272);
+  --color-bg-secondary: lch(2% 0.2 272);
+  --color-bg-tertiary: lch(11% 0.9 272);
+  --color-bg-quaternary: lch(15% 1.3 272);
+  --color-bg-quinary: lch(19% 1.6 272);
+
+  --color-text-primary: lch(96% 1 272);
+  --color-text-secondary: lch(78% 2.5 272);
+  --color-text-tertiary: lch(62% 3.5 272);
+  --color-text-quaternary: lch(46% 4 272);
+
+  --color-border-primary: lch(20% 1.8 272);
+  --color-border-secondary: lch(14% 1.2 272);
+  --color-border-tertiary: lch(10% 0.8 272);
+
+  --color-accent-hover: lch(76% 70 122.015);
+  --color-accent-foreground: lch(12% 2 122.015);
+  --color-chart-muted: lch(55% 4.5 272);
+
+  --color-info: hsl(216 87% 65%);
+  --color-info-bg: hsl(215 100% 6%);
+  --color-info-border: hsl(223 43% 17%);
+  --color-success: hsl(150 86% 65%);
+  --color-success-bg: hsl(150 100% 6%);
+  --color-success-border: hsl(147 100% 12%);
+  --color-warning: hsl(46 87% 65%);
+  --color-warning-bg: hsl(64 100% 6%);
+  --color-warning-border: hsl(60 100% 9%);
+  --color-danger: hsl(358 100% 81%);
+  --color-danger-bg: hsl(358 76% 10%);
+  --color-danger-border: hsl(357 89% 16%);
+
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.15), 0 8px 24px rgb(0 0 0 / 0.28);
+}
+
 @layer base {
   html {
     color-scheme: light;
+  }
+
+  html[data-theme='dark'] {
+    color-scheme: dark;
   }
 
   body {
@@ -143,7 +185,7 @@
   }
 
   ::selection {
-    background: lch(48% 59 288 / 0.15);
+    background: lch(70.302% 75.459 122.015 / 0.22);
   }
 
   /* Thin 1px keyboard focus ring (React Aria mirrors it as data-focus-visible) */
