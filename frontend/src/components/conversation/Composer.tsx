@@ -9,12 +9,14 @@ export function Composer({
   onSend,
   placeholder = 'Write a message…',
   ariaLabel = 'Message',
+  isDisabled = false,
 }: {
   value: string
   onChange: (value: string) => void
   onSend: () => void
   placeholder?: string
   ariaLabel?: string
+  isDisabled?: boolean
 }) {
   const updateValue = (nextValue: string) => onChange(clampMemberDraft(nextValue))
 
@@ -27,6 +29,7 @@ export function Composer({
       aria-label={ariaLabel}
       value={value}
       onChange={updateValue}
+      isDisabled={isDisabled}
       className="rounded-md border border-border-primary bg-bg-primary p-2"
     >
       <TextArea
@@ -43,7 +46,7 @@ export function Composer({
       />
       <div className="mt-1 flex items-center justify-between gap-3">
         <span className="text-micro text-text-quaternary">Enter to send · Shift+Enter for a new line</span>
-        <Button variant="primary" size="sm" isDisabled={!value.trim()} onPress={send}>
+        <Button variant="primary" size="sm" isDisabled={isDisabled || !value.trim()} onPress={send}>
           <Send size={14} strokeWidth={1.5} aria-hidden="true" />
           Send
         </Button>

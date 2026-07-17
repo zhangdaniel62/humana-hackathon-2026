@@ -2,10 +2,11 @@ import { useState, type FormEvent } from 'react'
 import { Form } from 'react-aria-components'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Input } from '@/components/ui'
-import { useAuth } from '@/lib/auth-context'
+import { ApiError } from '@/lib/api'
+import { canAccessPath, landingPathFor, useAuth } from '@/lib/auth-context'
 
 export function SignInPage() {
-  const { user, signIn } = useAuth()
+  const { user, loading, signIn } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [submitting, setSubmitting] = useState(false)
@@ -19,7 +20,17 @@ export function SignInPage() {
       ? location.state.from
       : '/'
 
-  if (user) return <Navigate to={from} replace />
+  if (loading) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center text-small text-text-tertiary">
+        Loading…
+      </main>
+    )
+  }
+
+  if (user) {
+    return <Navigate to={canAccessPath(user, from) ? from : landingPathFor(user)} replace />
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -30,10 +41,16 @@ export function SignInPage() {
     setSubmitting(true)
     setError(null)
     try {
-      await signIn({ username, password })
-      navigate(from, { replace: true })
-    } catch {
-      setError('Sign-in failed. Check your username and password, then try again.')
+      const authenticated = await signIn({ username, password })
+      navigate(canAccessPath(authenticated, from) ? from : landingPathFor(authenticated), {
+        replace: true,
+      })
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError
+          ? caught.message
+          : 'Sign-in failed. Check your username and password, then try again.',
+      )
     } finally {
       setSubmitting(false)
     }
@@ -70,12 +87,6 @@ export function SignInPage() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </Button>
         </Form>
-        <div className="mt-6 border-t border-border-secondary pt-4">
-          <p className="text-mini text-text-tertiary">Members don't need an account.</p>
-          <Button className="mt-2 w-full" onPress={() => navigate('/member')}>
-            Chat with Claim Assist
-          </Button>
-        </div>
       </div>
     </main>
   )

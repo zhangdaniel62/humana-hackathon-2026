@@ -1,4 +1,4 @@
-import { buildMockDashboardResponse } from './mockOperationsDashboard'
+import { apiFetch } from './api'
 
 /**
  * Types and data access for the manager operations dashboard, mirroring
@@ -59,24 +59,18 @@ export interface DashboardQuery {
   bucket?: DashboardBucket
 }
 
-/**
- * SWAP POINT — the only place the dashboard reads data from.
- *
- * Currently served by the local synthetic mock so the surface renders
- * without the backend. To wire the real API, replace the body with:
- *
- *   return apiFetch<OperationsDashboardResponse>(
- *     `/api/operations/dashboard?${new URLSearchParams(params)}`,
- *     { credentials: 'include' },
- *   )
- *
- * plus the 401/403/422/network handling in the contract's
- * "Loading, errors, empty states" section. Nothing else changes.
- */
+/** The single data source for all operations-dashboard views. */
 export async function fetchOperationsDashboard(
   params: DashboardQuery = {},
+  signal?: AbortSignal,
 ): Promise<OperationsDashboardResponse> {
-  // Brief artificial latency so the loading skeleton is a real state.
-  await new Promise((resolve) => setTimeout(resolve, 250))
-  return buildMockDashboardResponse(params)
+  const query = new URLSearchParams()
+  if (params.start) query.set('start', params.start)
+  if (params.end) query.set('end', params.end)
+  if (params.bucket) query.set('bucket', params.bucket)
+
+  const suffix = query.size > 0 ? `?${query.toString()}` : ''
+  return apiFetch<OperationsDashboardResponse>(`/api/operations/dashboard${suffix}`, {
+    signal,
+  })
 }

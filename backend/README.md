@@ -44,11 +44,13 @@ uv run python sentinel_demo.py
 See [SENTINEL_SETUP.md](SENTINEL_SETUP.md) for event contracts, configuration,
 and dashboard integration.
 
-## Integrated P1 demo and APIs
+## Integrated application and APIs
 
-Start the backend, then open `http://localhost:8000/operations`. The page can
-run the fixed, offline-safe golden path and trace its metrics and alerts back to
-event IDs. The original caller fallback remains at `/demo/`.
+Start the backend, then start the React app from `frontend/` with `pnpm dev` and
+open `http://127.0.0.1:5173`. Vite proxies `/api` and `/ws` to this backend so
+the HTTP-only session cookie is shared by the authenticated REST and WebSocket
+contracts. The original `/operations` and `/demo/` pages remain direct backend
+validation surfaces.
 
 ```shell
 uv run uvicorn main:app --reload
@@ -143,12 +145,13 @@ closes. When dates are omitted, trend output stops at the latest completed week
 or month while repeat detection can still inspect later follow-ups. Intervention
 coverage is not presented as proof that a denial was prevented.
 
-Managers can use the operations dashboard and raw ADK developer APIs. Customers
-and reps can use the current combined chat/call demo and connect to
-`/ws/conversation`. Both roles may stream microphone audio and receive
-transcripts and spoken AI responses in Voice mode. The future frontend should
-use the role, `capabilities`, and `agent_audio_enabled` session field to select
-its presentation.
+Managers use the live React operations dashboard and raw ADK developer APIs.
+Customers use the React Chat/Voice page backed by `/ws/conversation` and their
+owned session summaries. Representatives use the capability-protected synthetic
+queue/workspace demo and may also connect to the conversation backend. Customer
+and rep Voice sessions may stream microphone audio and receive transcripts and
+spoken responses. The frontend uses the authenticated role, `capabilities`, and
+`agent_audio_enabled` field to select its presentation.
 
 ## Evaluation and durable prototype boundary
 

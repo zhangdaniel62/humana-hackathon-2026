@@ -125,6 +125,20 @@ class VoiceOrchestratorTests(unittest.TestCase):
         )
         self.assertNotIn("CLM-SENSITIVE", captured.output[0])
 
+    def test_route_log_accepts_adk_keyword_arguments(self) -> None:
+        context = SimpleNamespace(
+            invocation_id="invocation-1",
+            session=SimpleNamespace(id="session-1"),
+        )
+
+        result = log_agent_route(
+            tool=SimpleNamespace(name="lookup_claim_story"),
+            args={"claim_id": "CLM-SENSITIVE"},
+            tool_context=context,
+        )
+
+        self.assertIsNone(result)
+
     def test_model_override_for_text_channels(self) -> None:
         agent = create_voice_orchestrator(
             build_test_settings(),

@@ -12,11 +12,18 @@ import { WorkspacePage } from '@/pages/WorkspacePage'
 
 export const router = createBrowserRouter([
   { path: '/signin', element: <SignInPage /> },
-  { path: '/member', element: <MemberPage /> },
+  {
+    path: '/member',
+    element: (
+      <RequireAuth roles={['customer']} capability="chat">
+        <MemberPage />
+      </RequireAuth>
+    ),
+  },
   {
     path: '/',
     element: (
-      <RequireAuth>
+      <RequireAuth roles={['manager', 'rep']}>
         <SessionsProvider>
           <DashboardFiltersProvider>
             <AppShell />
@@ -25,10 +32,38 @@ export const router = createBrowserRouter([
       </RequireAuth>
     ),
     children: [
-      { index: true, element: <DashboardPage /> },
-      { path: 'metrics/:metricSlug', element: <MetricPage /> },
-      { path: 'queue', element: <QueuePage /> },
-      { path: 'workspace', element: <WorkspacePage /> },
+      {
+        index: true,
+        element: (
+          <RequireAuth roles={['manager']} capability="manager_dashboard">
+            <DashboardPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'metrics/:metricSlug',
+        element: (
+          <RequireAuth roles={['manager']} capability="manager_dashboard">
+            <MetricPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'queue',
+        element: (
+          <RequireAuth roles={['rep']} capability="rep_queue">
+            <QueuePage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'workspace',
+        element: (
+          <RequireAuth roles={['rep']} capability="chat">
+            <WorkspacePage />
+          </RequireAuth>
+        ),
+      },
       { path: '*', element: <Navigate to="/" replace /> },
     ],
   },

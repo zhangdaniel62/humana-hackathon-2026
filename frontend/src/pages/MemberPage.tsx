@@ -1,82 +1,58 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo, useState } from 'react'
 import { ToggleButton, ToggleButtonGroup } from 'react-aria-components'
-import { MessageSquare, Mic } from 'lucide-react'
+import { AlertCircle, LoaderCircle, MessageSquare, Mic } from 'lucide-react'
 import { Composer } from '@/components/conversation/Composer'
+import { ConversationSummary } from '@/components/conversation/ConversationSummary'
 import { ConversationTranscript } from '@/components/conversation/ConversationTranscript'
-import { ResultPanel } from '@/components/conversation/ResultPanel'
-import { Badge, Button, InfoTooltip, Panel } from '@/components/ui'
+import { Badge, Button, InfoTooltip, Panel, type StatusVariant } from '@/components/ui'
 import { cn } from '@/lib/cn'
-import {
-  createMemberConversationState,
-  scriptedMemberTurn,
-  switchMemberMode,
-  type MemberMode,
-  type MemberVisibleSummary,
-} from '@/lib/memberDemo'
+import { useAuth } from '@/lib/auth-context'
+import type { TranscriptMessage } from '@/lib/representativeDemo'
+import { useConversation } from '@/lib/useConversation'
 
 const starters = ['Check a claim', 'Ask about coverage', 'Understand a denial']
 
-function MemberResult({ result, onChoice }: { result: MemberVisibleSummary; onChoice: (choice: string) => void }) {
-  return (
-    <div className="py-3">
-      <ResultPanel
-        title={result.title}
-        summary={result.summary}
-        tone={result.tone}
-        badge={result.badge}
-        source={result.source}
-      >
-        {result.details.length > 0 && (
-          <dl className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {result.details.map((detail) => (
-              <div key={detail.label}>
-                <dt className="text-mini text-text-tertiary">{detail.label}</dt>
-                <dd className="mt-0.5 text-small text-text-secondary">{detail.value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
-        {result.choices && (
-          <div className="flex flex-wrap gap-2">
-            {result.choices.map((choice) => (
-              <Button key={choice} size="sm" onPress={() => onChoice(choice)}>
-                {choice}
-              </Button>
-            ))}
-          </div>
-        )}
-      </ResultPanel>
-    </div>
-  )
+function connectionBadge(connection: ReturnType<typeof useConversation>['connection']): {
+  label: string
+  tone: StatusVariant
+} {
+  switch (connection) {
+    case 'connected':
+      return { label: 'Connected', tone: 'success' }
+    case 'connecting':
+      return { label: 'Connecting', tone: 'neutral' }
+    case 'unauthorized':
+      return { label: 'Sign-in required', tone: 'warning' }
+    case 'forbidden':
+      return { label: 'Access denied', tone: 'danger' }
+    case 'error':
+      return { label: 'Connection error', tone: 'danger' }
+    case 'disconnected':
+      return { label: 'Disconnected', tone: 'neutral' }
+  }
 }
 
 export function MemberPage() {
-  const [state, setState] = useState(createMemberConversationState)
+  const { signOut } = useAuth()
+  const conversation = useConversation()
+  const [draft, setDraft] = useState('')
+  const badge = connectionBadge(conversation.connection)
+  const selectedMode = conversation.pendingMode ?? conversation.mode
+  const canInteract = conversation.connection === 'connected' && Boolean(conversation.sessionId)
+  const transcript = useMemo<TranscriptMessage[]>(
+    () =>
+      conversation.messages.map((message) => ({
+        id: message.id,
+        speaker: message.speaker === 'user' ? 'member' : 'assistant',
+        speakerLabel: message.speaker === 'user' ? 'You' : 'Claim Assist',
+        text: message.text,
+        timestamp: 'Now',
+      })),
+    [conversation.messages],
+  )
 
-  const setMode = (mode: MemberMode) => {
-    setState((current) => switchMemberMode(current, mode))
-  }
-
-  const submit = (text = state.draft) => {
-    const normalized = text.trim()
-    if (!normalized) return
-    setState((current) => ({
-      ...current,
-      draft: '',
-      events: [...current.events, ...scriptedMemberTurn(normalized, current.events.length)],
-    }))
-  }
-
-  const simulateVoiceTurn = () => {
-    setState((current) => ({
-      ...current,
-      voiceState: 'speaking',
-      events: [
-        ...current.events,
-        ...scriptedMemberTurn('Check whether my claim is ready for review', current.events.length),
-      ],
-    }))
+  const submit = (text = draft) => {
+    if (conversation.sendText(text)) setDraft('')
   }
 
   return (
@@ -89,20 +65,21 @@ export function MemberPage() {
           </InfoTooltip>
         </div>
         <div className="ml-auto flex items-center gap-4">
-          <Badge variant="neutral">Synthetic demo data</Badge>
+          <Badge variant={badge.tone}>{badge.label}</Badge>
           <ToggleButtonGroup
             aria-label="Conversation mode"
             selectionMode="single"
             disallowEmptySelection
-            selectedKeys={[state.mode]}
+            selectedKeys={[selectedMode]}
             onSelectionChange={(keys) => {
               const key = [...keys][0]
-              if (key === 'chat' || key === 'voice') setMode(key)
+              if (key === 'chat' || key === 'voice') conversation.setMode(key)
             }}
             className="flex items-center gap-0.5 rounded-md bg-bg-secondary p-0.5"
           >
             <ToggleButton
               id="chat"
+              isDisabled={!canInteract || conversation.pendingMode !== null}
               className={cn(
                 'flex h-7 cursor-default items-center gap-1.5 rounded-md px-3 text-small font-medium transition-colors',
                 'text-text-tertiary data-hovered:text-text-secondary data-selected:bg-bg-primary data-selected:text-text-primary',
@@ -113,6 +90,7 @@ export function MemberPage() {
             </ToggleButton>
             <ToggleButton
               id="voice"
+              isDisabled={!canInteract || conversation.pendingMode !== null}
               className={cn(
                 'flex h-7 cursor-default items-center gap-1.5 rounded-md px-3 text-small font-medium transition-colors',
                 'text-text-tertiary data-hovered:text-text-secondary data-selected:bg-bg-primary data-selected:text-text-primary',
@@ -122,43 +100,66 @@ export function MemberPage() {
               Voice
             </ToggleButton>
           </ToggleButtonGroup>
-          <Link
-            to="/signin"
-            className="text-small text-text-tertiary transition-colors hover:text-text-primary"
-          >
-            Staff sign in
-          </Link>
+          <Button variant="ghost" size="sm" onPress={() => void signOut()}>
+            Sign out
+          </Button>
         </div>
       </header>
 
-      <div className="mx-auto flex min-h-0 w-full max-w-[880px] flex-1 flex-col px-6">
+      <div className="mx-auto flex min-h-0 w-full max-w-[880px] flex-1 flex-col overflow-y-auto px-6">
         <section aria-label="Claim Assist conversation" className="flex-1 py-8">
-          {state.events.map((event) =>
-            event.type === 'message' ? (
-              <ConversationTranscript key={event.id} messages={[event.message]} />
-            ) : (
-              <MemberResult key={event.id} result={event.result} onChoice={(choice) => submit(choice)} />
-            ),
+          {transcript.length > 0 ? (
+            <ConversationTranscript messages={transcript} />
+          ) : (
+            <div className="flex min-h-48 items-center justify-center text-center">
+              <div>
+                {conversation.connection === 'connecting' && (
+                  <LoaderCircle className="mx-auto mb-3 animate-spin text-text-quaternary" size={18} aria-hidden="true" />
+                )}
+                <p className="text-regular text-text-secondary">
+                  {conversation.connection === 'connecting'
+                    ? 'Starting a secure conversation…'
+                    : 'Ask about a claim, coverage, authorization, or denial.'}
+                </p>
+              </div>
+            </div>
           )}
+
+          {conversation.error && (
+            <Panel bordered className="mt-4 flex items-start gap-3" role="alert">
+              <AlertCircle className="mt-0.5 shrink-0 text-danger" size={16} aria-hidden="true" />
+              <div className="min-w-0 flex-1">
+                <p className="text-small font-medium text-text-primary">Conversation notice</p>
+                <p className="mt-1 text-small text-text-secondary">{conversation.error}</p>
+              </div>
+              <Button variant="ghost" size="sm" onPress={conversation.clearError}>Dismiss</Button>
+            </Panel>
+          )}
+
+          {conversation.summaryLoading && (
+            <p className="mt-6 text-mini text-text-tertiary">Updating structured session findings…</p>
+          )}
+          {conversation.summary && <ConversationSummary summary={conversation.summary} />}
         </section>
 
         <div className="sticky bottom-0 bg-bg-primary pb-6 pt-3">
-          {state.events.length === 1 && state.mode === 'chat' && (
+          {conversation.messages.length === 0 && conversation.mode === 'chat' && canInteract && (
             <div className="mb-3 flex flex-wrap gap-2">
               {starters.map((starter) => (
-                <Button key={starter} size="sm" onPress={() => setState((current) => ({ ...current, draft: starter }))}>
+                <Button key={starter} size="sm" onPress={() => setDraft(starter)}>
                   {starter}
                 </Button>
               ))}
             </div>
           )}
-          {state.mode === 'chat' ? (
+          {selectedMode === 'chat' ? (
             <Composer
-              value={state.draft}
-              onChange={(draft) => setState((current) => ({ ...current, draft }))}
+              value={draft}
+              onChange={setDraft}
               onSend={() => submit()}
-              placeholder="Ask about a claim, coverage, or denial…"
+              placeholder={canInteract ? 'Ask about a claim, coverage, or denial…' : 'Connecting…'}
               ariaLabel="Message Claim Assist"
+              isDisabled={!canInteract || conversation.pendingMode !== null}
             />
           ) : (
             <Panel className="flex items-center justify-between gap-4">
@@ -168,18 +169,24 @@ export function MemberPage() {
                 </span>
                 <div>
                   <p className="text-small font-medium text-text-primary">
-                    Voice interface preview · microphone inactive
+                    {conversation.pendingMode === 'voice'
+                      ? 'Switching to Voice…'
+                      : conversation.microphoneState === 'listening'
+                        ? 'Voice is listening'
+                        : conversation.microphoneState === 'starting'
+                          ? 'Starting microphone…'
+                          : 'Microphone inactive'}
                   </p>
                   <p className="text-mini text-text-tertiary">
-                    {state.voiceState === 'speaking'
-                      ? 'Simulated response added to this same session.'
-                      : 'No permission, audio capture, playback, or network connection is used.'}
+                    {conversation.agentAudioEnabled
+                      ? 'Chat history and session findings stay in this same conversation.'
+                      : 'Spoken responses are unavailable for this account; transcripts remain visible.'}
                   </p>
                 </div>
               </div>
-              <Button variant="primary" onPress={simulateVoiceTurn}>
-                Simulate voice turn
-              </Button>
+              {conversation.microphoneState === 'error' && (
+                <Button variant="primary" onPress={conversation.retryMicrophone}>Retry microphone</Button>
+              )}
             </Panel>
           )}
         </div>

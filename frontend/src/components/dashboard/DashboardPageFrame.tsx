@@ -1,8 +1,11 @@
 import type { ReactNode } from 'react'
-import { Panel } from '@/components/ui'
+import { Button, Panel } from '@/components/ui'
 import type { OperationsDashboardResponse } from '@/lib/operationsDashboard'
 import { DashboardFilters } from './DashboardFilters'
-import { useOperationsDashboard } from './useOperationsDashboard'
+import {
+  useOperationsDashboard,
+  type OperationsDashboardError,
+} from './useOperationsDashboard'
 
 function Skeleton() {
   return (
@@ -31,6 +34,39 @@ function EmptyRange() {
   )
 }
 
+function ErrorNotice({ error, onRetry }: { error: OperationsDashboardError; onRetry: () => void }) {
+  const title =
+    error.kind === 'authentication'
+      ? 'Sign-in required'
+      : error.kind === 'forbidden'
+        ? 'Access denied'
+        : error.kind === 'validation'
+          ? 'Check the selected range'
+          : 'Dashboard unavailable'
+
+  return (
+    <Panel className="flex items-center gap-4 border-danger-border bg-danger-bg" role="alert">
+      <div className="min-w-0 flex-1">
+        <p className="text-small font-medium text-danger">{title}</p>
+        <p className="mt-0.5 text-mini text-text-secondary">{error.message}</p>
+      </div>
+      {error.kind === 'authentication' && (
+        <a
+          href="/signin"
+          className="inline-flex h-7 items-center rounded-md border border-border-primary bg-bg-primary px-2 text-small font-medium text-text-primary"
+        >
+          Sign in
+        </a>
+      )}
+      {error.retryable && (
+        <Button size="sm" onPress={onRetry}>
+          Retry
+        </Button>
+      )}
+    </Panel>
+  )
+}
+
 export interface DashboardPageFrameProps {
   children: (data: OperationsDashboardResponse) => ReactNode
 }
@@ -41,14 +77,17 @@ export interface DashboardPageFrameProps {
  * dimming the previous render during a refetch.
  */
 export function DashboardPageFrame({ children }: DashboardPageFrameProps) {
-  const { data, loading } = useOperationsDashboard()
+  const { data, loading, error, retry } = useOperationsDashboard()
   const empty = data !== null && data.summary.completed_sessions === 0 && data.trend.length === 0
 
   return (
     <div className="flex flex-col gap-6 p-6">
       <DashboardFilters metadata={data?.metadata} />
-      {data === null ? (
+      {error && <ErrorNotice error={error} onRetry={retry} />}
+      {data === null && loading ? (
         <Skeleton />
+      ) : data === null ? (
+        null
       ) : empty ? (
         <EmptyRange />
       ) : (

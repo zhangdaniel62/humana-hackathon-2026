@@ -1,39 +1,77 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
-import { AuthContext, type SignInCredentials, type User } from './auth-context'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { apiFetch, AUTH_REQUIRED_EVENT } from './api'
+import {
+  AuthContext,
+  type Capability,
+  type SignInCredentials,
+  type User,
+  type UserRole,
+} from './auth-context'
 
-const STORAGE_KEY = 'claim-assist.user'
-
-function loadStoredUser(): User | null {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as User) : null
-  } catch {
-    return null
-  }
+interface BackendUser {
+  id: number
+  username: string
+  role: UserRole
+  capabilities: Capability[]
 }
 
-/** Demo sign-in: any non-empty credentials; a "manager" username gets the manager role. */
-function authenticate({ username, password }: SignInCredentials): User {
-  if (!username || !password) throw new Error('Missing credentials')
-  const isManager = username.toLowerCase().includes('manager')
-  return { name: username, role: isManager ? 'Manager' : 'Representative' }
+interface AuthResponse {
+  user: BackendUser
+}
+
+function toUser(user: BackendUser): User {
+  return { ...user, name: user.username }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(loadStoredUser)
+  const [user, setUser] = useState<User | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    void apiFetch<AuthResponse>('/api/auth/me')
+      .then((response) => {
+        if (active) setUser(toUser(response.user))
+      })
+      .catch(() => {
+        if (active) setUser(null)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const clearExpiredSession = () => setUser(null)
+    window.addEventListener(AUTH_REQUIRED_EVENT, clearExpiredSession)
+    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, clearExpiredSession)
+  }, [])
 
   const signIn = useCallback(async (credentials: SignInCredentials) => {
-    const authenticated = authenticate(credentials)
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(authenticated))
+    const response = await apiFetch<AuthResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    })
+    const authenticated = toUser(response.user)
     setUser(authenticated)
+    return authenticated
   }, [])
 
-  const signOut = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY)
-    setUser(null)
+  const signOut = useCallback(async () => {
+    try {
+      await apiFetch<void>('/api/auth/logout', { method: 'POST' })
+    } finally {
+      setUser(null)
+    }
   }, [])
 
-  const value = useMemo(() => ({ user, signIn, signOut }), [user, signIn, signOut])
+  const value = useMemo(
+    () => ({ user, loading, signIn, signOut }),
+    [user, loading, signIn, signOut],
+  )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

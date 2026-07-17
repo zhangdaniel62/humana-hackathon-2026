@@ -53,14 +53,12 @@ first) / `pnpm lint`.
 - Routes (`src/app/router.tsx`): `/signin` and `/member` are public;
   everything else is under `RequireAuth` + `SessionsProvider` + `AppShell`:
   `/` Dashboard, `/metrics/:metricSlug`, `/queue`, `/workspace`.
-- **Auth (`src/lib/auth*.ts[x]`) is demo-only**: any non-empty
-  username/password signs in; username containing "manager" → Manager role,
-  else Representative. Persisted in `sessionStorage`. (These lib files were
-  reconstructed from call sites after an accidental revert wiped the
-  uncommitted originals — behavior is plausible, not verbatim.)
-- `src/lib/api.ts`: typed `apiFetch` against `VITE_API_BASE_URL`
-  (default `http://localhost:8000`). Nothing calls it yet. The frontend
-  renders backend facts; it never infers them.
+- **Auth (`src/lib/auth*.ts[x]`) is backend-backed**: login, `/me` hydration,
+  and logout use the HTTP-only session cookie. Users and tokens are not stored
+  in browser storage. Routes and navigation follow backend roles/capabilities.
+- `src/lib/api.ts`: credentialed typed `apiFetch` uses same-origin `/api` by
+  default (Vite proxies to the backend) and exposes the `/ws/conversation` URL
+  helper. The frontend renders backend facts; it never infers them.
 - `src/lib/cn.ts`: plain truthy-join, **no tailwind-merge** — later classes
   don't override earlier conflicting ones, so keep call sites conflict-free.
 - Sessions (`src/app/sessions*.ts[x]`): in-memory list of concurrent member
@@ -75,9 +73,7 @@ first) / `pnpm lint`.
   sits above these routes, so date range and Weekly/Monthly selection survive
   client-side tab navigation (a full page reload intentionally resets them).
 - `src/lib/operationsDashboard.ts` owns the typed response/query contract and
-  is the single data-source swap point. It currently calls
-  `buildMockDashboardResponse`; replace only `fetchOperationsDashboard` when
-  the real `GET /api/operations/dashboard` endpoint is ready.
+  calls the live manager-only `GET /api/operations/dashboard` endpoint.
 - `src/lib/mockOperationsDashboard.ts` is a deterministic client-side stand-in:
   it filters weekly source rows, re-buckets by month, and derives aggregates
   from integer counts. UI copy must continue to label these values and the
@@ -154,7 +150,8 @@ notice = info; closed/n-a = neutral.
 ## Verifying changes
 
 Run `pnpm build` and `pnpm lint`, then drive the real app with Playwright after
-starting `pnpm dev --host 127.0.0.1`. Sign in with `daniel`/anything. For
+starting the backend and `pnpm dev --host 127.0.0.1`. Use the seeded manager,
+customer, and representative credentials documented in `frontend/README.md`. For
 dashboard changes, exercise all five routes through the sidebar, change the
 Weekly/Monthly bucket and confirm it persists across client-side navigation,
 toggle at least one chart to its accessible table, inspect browser console
@@ -162,25 +159,24 @@ warnings/errors, and screenshot the overview plus affected focused views.
 Actually inspect every screenshot for clipping, overlap, active-nav state, and
 readability; a DOM-only pass is insufficient.
 
-Last verified 2026-07-17 at `83141abd`: build and lint passed; all five
-dashboard views, shared bucket persistence, the AHT table fallback, and a clean
-browser console passed Playwright inspection at the normal desktop viewport.
-Vite currently emits only its advisory warning that the main minified JS chunk
-is about 538 kB; plan route-level code splitting before this grows materially.
+Current integration checkpoint on 2026-07-17: 41 tests, build, and lint pass;
+the live frontend origin completed manager login/dashboard/logout, customer
+role enforcement, a real model-backed Chat turn, Chat→Voice→Chat mode switching,
+summary retrieval, and customer logout. Codex in-app-browser visual inspection
+is still required when that browser surface is available. Vite emits only its
+advisory warning that the main minified JS chunk exceeds 500 kB; plan route-level
+code splitting before this grows materially.
 
 ## Known state / open items
 
-- The five-view operations dashboard is implemented against deterministic
-  synthetic mock data. Queue and workspace remain shells; there is still no
-  queue table, workspace conversation UI, or member chat.
-- `/member` is a placeholder ("Talk to Claim Assist") with a staff sign-in
-  link; the member chat surface goes there.
-- Nothing populates sessions yet except the strip's `+` button.
-- Live backend integration is not started. `apiFetch` remains unused by the
-  dashboard; its typed contract and mock swap point are ready for the real
-  endpoint.
+- The five-view operations dashboard uses the live manager API with labeled
+  synthetic backend data, server-driven defaults, and explicit error states.
+- `/member` is the authenticated customer Chat/Voice surface. One persistent
+  WebSocket session handles mode switching, transcripts, PCM16 audio, and
+  structured summary refreshes.
+- The representative queue/workspace remains a clearly labeled synthetic UI;
+  connecting its queue actions and conversation socket is still open work.
 - Berkeley Mono (design mono face) isn't loaded — falls back through the
   `--font-mono` stack.
-- The frontend source is committed through `83141abd`; preserve small,
-  intentional commits because an earlier accidental revert destroyed
-  uncommitted `src/lib/*` implementations.
+- Preserve small, intentional commits because an earlier accidental revert
+  destroyed uncommitted `src/lib/*` implementations.

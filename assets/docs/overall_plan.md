@@ -18,8 +18,8 @@ feature. Status reflects the current repository, not the target architecture.
 | Area | Status | Implemented now | Work remaining | Roadmap |
 |---|---|---|---|---|
 | FastAPI and ADK platform | **Implemented through the minimal Feature 16 boundary** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/conversation`, `/ws/voice`, `/demo`, `/operations`, auth APIs, summary and operations APIs, liveness/readiness checks, CI, and container startup are present. | ADK/session durability, managed infrastructure, and distributed deployment remain future work. | Foundation; Features 0, 6, 9–10, 16 |
-| Authentication and role access | **Hackathon backend implemented** | One local SQLite file stores users, hashed sessions, synthetic reps, and synthetic operations history. Argon2 passwords, opaque hashed sessions, tracked schemas/seeds, login/me/logout APIs, allowed-origin checks, HTTP/WebSocket RBAC, role capabilities, an explicit disabled-by-default local bypass, ADK identity propagation, and summary ownership are verified. | Login and role-specific pages are Feature 12; enterprise identity, MFA, recovery, rate limiting, managed secrets, and durable audit retention remain future work. | Feature 0; Feature 12 UI |
-| First-class Chat and Voice | **Backend modes and role parity implemented** | Authenticated customers and reps use `/ws/conversation` or `/ws/voice` and can switch between Chat and Voice without losing the session. Both roles receive spoken AI output in Voice mode; Chat suppresses audio while preserving transcripts. Continuous input, interruption handling, validated frames, session correlation, summary-aware turn completion, transcript de-duplication, and typed safe errors are verified. | A credentialed microphone-to-live-model call remains an environment check. Frontends decide whether playback is appropriate for a particular call-center setup without the backend silently downgrading the rep role. | Features 0, 6, 8, 12 |
+| Authentication and role access | **Integrated for the hackathon frontend** | The SQLite/Argon2 backend session contract is connected to the React login, boot-time `/me` hydration, logout, capability-aware routes, and role-specific navigation. Session tokens remain HTTP-only and are never copied into browser storage. | Enterprise identity, MFA, recovery, rate limiting, managed secrets, and durable audit retention remain future work. | Feature 0; Feature 12 UI |
+| First-class Chat and Voice | **Customer frontend and backend integrated** | The authenticated customer page uses one `/ws/conversation` session for Chat and Voice, coalesces transcripts, refreshes structured summaries, gates microphone access behind Voice selection, streams 16 kHz mono PCM16, plays 24 kHz mono PCM16, and clears capture/playback on interruption, Chat switch, and unmount. The backend retains equivalent rep capability. | A credentialed microphone-to-live-model browser call remains an environment check; the representative queue/workspace is still a synthetic UI and does not yet open its own live socket. | Features 0, 6, 8, 12 |
 | Claim Story | **Implemented and integrated** | Exact BigQuery lookup with synthetic CSV fallback, deterministic timeline and denial guidance, grounding, confidence handling, escalation, shared findings, ROI enforcement, and typed denial/escalation events are verified. | Population-wide analysis and production data operations remain future work. | Features 3–5, 9 |
 | Benefits Q&A | **Implemented and integrated** | Deterministic coverage, prior authorization, cost, provider guidance, CSV/BigQuery clients, ambiguity handling, ROI refusal, shared findings, typed operational events, orchestrator routing, and summary projection are verified. | Production directory freshness and data-source operations remain future work. | Features 4, 6, 9 |
 | ROI controls | **Implemented and integrated** | One shared session context resolves verified, not-required, missing, expired, and unknown ROI; all member-specific tools fail closed, findings project through the summary API, and ROI-gap/session-start events feed Sentinel. | Production identity proofing and authorization submission remain future work. | Features 3, 6, 9 |
@@ -31,19 +31,18 @@ feature. Status reflects the current repository, not the target architecture.
 | Notification preview | **Implemented** | At-risk readiness results produce a grounded portal-message preview labeled `preview` and `not_sent`, visible on the operations page. | Real outbound delivery remains future work. | Feature 8 |
 | Sentinel runtime | **Single-instance replay boundary implemented** | Structured events persist in SQLite, replay at startup, and are processed once per event ID into application-scoped Sentinel alerts and metrics. | Multi-worker coordination, external event streaming, and enterprise retention remain future work. | Features 9, 16 |
 | Synthetic operations history | **Implemented and manager-only** | The shared local SQLite file is seeded idempotently with 1,521 call rows generated from 26 base-week cohorts, including 207 separate synthetic follow-up rows, automated/manual routing, four synthetic reps, and 26 claim-intervention workflow rows. The default completed-period view contains 1,520 rows across 26 weekly points and uses the trailing follow-up only for cohort observation. Supplied CSV/BigQuery source rows are never changed. | Production warehouse ingestion and real outcome linkage remain future work. | Features 0, 7, 10 |
-| Operations dashboard | **Backend complete; role-specific frontend pending** | `/operations` still displays the live Sentinel snapshot. `GET /api/operations/dashboard` adds manager-only weekly/monthly trends, date filtering, default completed-period behavior, manual-versus-automated volumes, per-rep workload, and the intervention funnel from persisted synthetic data. | Implement the five-tab frontend from `assets/docs/dashboard_frontend_contract.md`; advanced breakdowns and push updates remain stretch work. | Features 0, 10, 12 |
+| Operations dashboard | **Manager frontend and backend integrated** | The five route-backed React views consume `GET /api/operations/dashboard` with server-driven defaults, date/bucket filtering, abort-safe refetching, retained data, explicit auth/validation/network errors, and no runtime mock fallback. `/operations` remains a direct Sentinel validation surface. | Advanced breakdowns, push updates, and route-level bundle splitting remain stretch work. | Features 0, 10, 12 |
 | Expanded golden path | **Implemented with idempotent deterministic fallback** | A fixed-ID manager trigger now runs the population scan, produces and resolves a prioritized synthetic rep work item, records an explicitly offline fallback trace, executes the grounded intervention flow, returns the manager snapshot, and embeds the offline evaluation result. A repeated idempotency key returns the stored run without duplicating events or metrics. | Live microphone/model access remains an environment check; the endpoint labels its rep action as a synthetic simulation. | Feature 11 |
-| Role-specific product backend | **Implemented; frontend remains separate** | The backend returns role capabilities, gives customer and rep Voice parity, and exposes a narrow capability-protected rep queue with atomic claim/resolve/dismiss transitions. The combined `/demo` page remains a validation surface. | Build login, customer/rep experiences, and the five-tab manager frontend against these contracts. | Feature 12 |
+| Role-specific product surfaces | **Partially integrated** | Seeded users land on capability-appropriate routes; manager dashboard and customer Chat/Voice use live backend contracts. The representative queue/workspace remains an explicitly synthetic frontend surface, while its backend queue and conversation capabilities remain available. | Connect representative queue actions and its Chat/Voice workspace to the live APIs before calling all three product surfaces complete. | Feature 12 |
 | Evaluation harness | **Offline harness and CI thresholds implemented** | A versioned eight-case synthetic corpus evaluates grounding, reviewed readiness rules, ROI, fail-closed disclosure, and the declared routing contract. JSON/Markdown reports include p50/p95 latency; GitHub Actions enforces 100% offline category thresholds. | Run the explicit `--live` case with judge-environment Vertex credentials before claiming live ADK quality or network latency. | Feature 13 |
 | ADK specialist delegation | **Implemented narrowly for Claim Story** | The live root invokes a real typed Claim Story `AgentTool`, checks its result against deterministic grounding, records metadata-only trace IDs/timing/outcome, and fails closed to the direct tool. Runner-level tests prove both the nested handoff and fallback. | ROI, Benefits, and Readiness remain deterministic specialist tools rather than extra LLM hops. Expand only when each handoff adds value and passes the same grounding test. | Feature 14 |
 | Proactive prevention queue | **Synthetic backend implemented** | A bounded CSV/BigQuery repository contract scans Pending/In Review claims with existing reviewed rules. SQLite enforces scan/work-item deduplication, priority ordering, assignment, optimistic versions, and legal states. Manager scan and rep queue APIs enforce role/capability boundaries. | Production batch source, distributed scan locking, queue SLA policy, and real claim-system writeback remain future work. | Feature 15 |
 | Durable runtime boundary | **Minimal single-instance boundary implemented** | SQLite persists work items, idempotency runs, trace metadata, and structured events. Startup replays events exactly once into Sentinel and performs one idempotent scan. Liveness, manager readiness, CI, Docker startup, and restart tests are present. | ADK sessions and session summaries remain in process; there is no multi-worker leader election, distributed queue, or enterprise event bus. | Feature 16 |
 
-Current verified backend checkpoint: **169 tests passed, 3 skipped, and 216
-subtests passed**. At user direction, this checkpoint was verified through
-terminal tests, FastAPI/application smoke checks, an isolated repeatable auth
-bootstrap, the historical Sentinel replay, and a real-browser golden-path
-dashboard exercise while the frontend is being implemented separately.
+Current verified integration checkpoint: **206 backend tests passed, 2 skipped,
+and 216 subtests passed; 41 frontend tests, the production build, and lint all
+passed**. The remaining runtime gates are the requested in-app-browser exercise
+and a credentialed live-model/microphone check.
 
 ## 1. Target outcome
 
@@ -161,12 +160,11 @@ Claim Assist targets three role-specific user-facing surfaces:
   intervention funnel. Live Sentinel metrics remain available for the
   current session/event population.
 
-The current customer/rep static browser-microphone page at `/demo` is a
-low-dependency Voice validation surface. It does not define Chat as a fallback
-or replace the required first-class Chat UI. Authentication currently exposes an API contract,
-not a login page. The full login, customer, rep, and manager frontend is a
-separate workstream against the contracts in this document; it is not a
-prerequisite for the backend domain workflow.
+The customer React surface is the primary first-class Chat/Voice interface. The
+static `/demo` page remains a low-dependency backend validation surface. The
+manager React surface consumes the persisted dashboard API. The representative
+queue/workspace remains explicitly synthetic until its live queue actions and
+conversation socket are integrated.
 
 ## 5. Architecture
 
@@ -847,8 +845,8 @@ A separate frontend dashboard is not required for this checkpoint.
 
 ### Feature 10 — Minimal operations dashboard
 
-- **Status:** ✅ Complete — live snapshot and persisted backend contract;
-  five-tab P0 frontend pending
+- **Status:** ✅ Complete — live snapshot, persisted backend contract, and
+  five-tab React dashboard integrated
 - **Priority:** P1
 - **Depends on:** Feature 9
 - **Purpose:** make the event and metric story judge-visible.
@@ -932,7 +930,7 @@ they form one live transaction.
 
 ### Feature 12 — Role-specific frontend integration
 
-- **Status:** ⬜ Pending — rating-5 scoring gate
+- **Status:** 🟨 Partial — customer and manager live; representative UI synthetic
 - **Priority:** P0
 - **Depends on:** Feature 0 plus the implemented conversation, session-summary,
   events, alerts, and metrics APIs; rep Voice audio parity is part of this gate
@@ -942,39 +940,40 @@ they form one live transaction.
 
 Minimum scope:
 
-- [ ] `/login` using the auth APIs and the returned role/capability contract
-- [ ] customer page with equal first-class Chat and Voice controls plus spoken
+- [x] `/signin` using the auth APIs and the returned role/capability contract
+- [x] customer page with equal first-class Chat and Voice controls plus spoken
   AI playback in Voice
 - [ ] rep page with a help-needed queue plus equal first-class Chat and Voice
   controls with spoken AI playback in Voice
-- [ ] manager page with Overview, AHT, FCR, Repeat Contact Rate, and Denial
+- [x] manager page with Overview, AHT, FCR, Repeat Contact Rate, and Denial
   Intervention tabs backed by the documented persisted-dashboard contract
-- [ ] capability-based navigation that still relies on backend enforcement for
+- [x] capability-based navigation that still relies on backend enforcement for
   every protected HTTP/WebSocket action
 - [x] dedicated rep help-queue projection/API that does not expose the
   manager-only metrics/dashboard contract
-- [ ] `WS /ws/conversation` for customer and rep Chat/Voice without replacing
+- [x] `WS /ws/conversation` for the customer Chat/Voice surface without replacing
   the active session
 - [ ] backend and frontend rep Voice parity: microphone input, transcripts, and
   spoken AI output work for reps as they do for customers
-- [ ] no microphone permission request until the customer or rep explicitly
+- [x] no microphone permission request until the customer explicitly
   selects Voice
-- [ ] complete microphone cleanup and, where enabled, audio-queue cancellation
+- [x] complete microphone cleanup and audio-queue cancellation
   when the user returns to Chat or ends the session
 - [x] backend support for complete typed conversation, caller/agent transcripts, customer and rep
   spoken playback in Voice, barge-in, and user-safe
   authentication/disconnection/error states
-- [ ] `session_started` and `turn_complete` handling through the emitted
+- [x] `session_started` and `turn_complete` handling through the emitted
   authorized `summary_url`
-- [ ] essential Claim Story, Benefits, ROI, Readiness, and notification cards
-  on customer/rep surfaces
+- [x] essential Claim Story, Benefits, ROI, Readiness, and notification cards
+  on the customer surface
 - [x] exact manager dashboard API response, chart/page mappings, TypeScript
   types, metric caveats, and error/empty-state contract documented in
   `assets/docs/dashboard_frontend_contract.md`
-- [ ] manager metric tiles, trend charts, manual/automated routing, per-rep
-  workload, intervention funnel, and live alert list backed only by
-  manager-authorized APIs
-- [ ] logout that revokes the backend session and returns to `/login`
+- [x] manager metric tiles, trend charts, manual/automated routing, per-rep
+  workload, and intervention funnel backed only by the manager-authorized
+  persisted-dashboard API
+- [ ] add the separate live Sentinel alert list to the React manager surface
+- [x] logout that revokes the backend session and returns to `/signin`
 
 The frontend must treat transcripts as conversational aids and use structured
 summary responses for factual cards. It must never determine claim, coverage,
@@ -989,9 +988,9 @@ complete Chat or Voice, managers can see the dashboard, structured cards
 refresh after turns, and direct unauthorized route/API/socket attempts remain
 blocked.
 
-**Safe stopping point:** the frontend is a separate workstream; retain the
-customer/rep `/demo`, manager-only `/operations`, and direct auth APIs as
-backend-owned verification surfaces while it is integrated.
+**Safe stopping point:** customer and manager flows use live backend contracts;
+retain the explicitly synthetic representative workspace plus `/demo` and
+`/operations` as validation surfaces until rep-specific live UI work lands.
 
 ### Feature 13 — Evaluation harness
 

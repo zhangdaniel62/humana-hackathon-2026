@@ -100,7 +100,7 @@ _default_trace_store = InMemoryDelegationTraceStore()
 
 def log_agent_route(
     tool: BaseTool,
-    _args: dict[str, Any],
+    args: dict[str, Any],
     tool_context: ToolContext,
 ) -> None:
     """Log metadata for each root-agent routing decision.
@@ -108,6 +108,8 @@ def log_agent_route(
     Tool arguments and result payloads are deliberately excluded because they
     can contain member or claim information.
     """
+
+    del args
 
     logger.info(
         "Agent route agent=%s tool=%s invocation_id=%s session_id=%s",

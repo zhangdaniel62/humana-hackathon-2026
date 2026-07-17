@@ -13,7 +13,7 @@ from argon2 import PasswordHasher
 from fastapi import WebSocketDisconnect
 from fastapi.testclient import TestClient
 
-from src.auth import AuthStore, UserRole
+from src.auth import AuthSettings, AuthStore, UserRole
 from src.events import event_log
 from src.services.session_summary import session_summary_store
 
@@ -31,6 +31,13 @@ class _WaitingRunner:
         await asyncio.Event().wait()
         if False:
             yield None
+
+
+def test_default_origins_include_the_vite_development_server() -> None:
+    settings = AuthSettings(_env_file=None)
+
+    assert "http://localhost:5173" in settings.allowed_origins
+    assert "http://127.0.0.1:5173" in settings.allowed_origins
 
 
 def test_tracked_demo_seed_is_idempotent_and_uses_argon2(tmp_path) -> None:

@@ -2,14 +2,14 @@ import { createContext, useContext } from 'react'
 import type { DashboardBucket, IsoDate } from '@/lib/operationsDashboard'
 
 export interface DashboardFilters {
-  start: IsoDate
-  end: IsoDate
-  bucket: DashboardBucket
+  start?: IsoDate
+  end?: IsoDate
+  bucket?: DashboardBucket
 }
 
 export interface DashboardFiltersContextValue {
   filters: DashboardFilters
-  setRange: (start: IsoDate, end: IsoDate) => void
+  setRange: (start?: IsoDate, end?: IsoDate) => void
   setBucket: (bucket: DashboardBucket) => void
 }
 
