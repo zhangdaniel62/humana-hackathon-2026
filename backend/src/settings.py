@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     members_table: str = "members"
     roi_authorizations_table: str = "roi_authorizations"
 
-    gcs_bucket: str
+    gcs_bucket: str | None = None
 
     def table(self, name: str) -> str:
         """Fully-qualified BigQuery table id: ``project.dataset.table``."""

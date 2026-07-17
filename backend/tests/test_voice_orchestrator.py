@@ -181,6 +181,7 @@ class VoiceOrchestratorTests(unittest.TestCase):
         self.assertIn("two-turn confirmation gate", agent.instruction)
         self.assertIn("do not call the", agent.instruction)
         self.assertIn("claim tool in that turn", agent.instruction)
+        self.assertIn("slightly slower than typical conversation", agent.instruction)
 
     def test_one_context_can_support_claim_then_benefit_intents(self) -> None:
         agent = create_voice_orchestrator(
