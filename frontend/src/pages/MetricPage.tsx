@@ -21,7 +21,7 @@ export function MetricPage() {
 
   return (
     <div className="flex flex-col">
-      <PageHeader title={metric.label} />
+      <PageHeader title={metric.pageTitle} description={metric.description} />
       <DashboardPageFrame>{(data) => <Tab data={data} />}</DashboardPageFrame>
     </div>
   )

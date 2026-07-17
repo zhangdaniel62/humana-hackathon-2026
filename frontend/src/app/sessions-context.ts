@@ -1,20 +1,32 @@
 import { createContext, useContext } from 'react'
-import type { StatusVariant } from '@/components/ui'
+import type {
+  InteractionDisposition,
+  InteractionSection,
+  RepresentativeDemoState,
+  RepresentativeInteraction,
+} from '@/lib/representativeDemo'
 
-export interface InteractionSession {
-  id: string
-  memberLabel: string
-  status: StatusVariant
-}
-
-export interface SessionsContextValue {
-  sessions: InteractionSession[]
-  activeSessionId: string | null
-  /** Called on queue pickup — adds the session (if new) and makes it active. */
-  openSession: (session: InteractionSession) => void
-  activateSession: (id: string) => void
-  /** Called when the member leaves, or manually via a tab's close button. */
-  closeSession: (id: string) => void
+export interface SessionsContextValue extends RepresentativeDemoState {
+  loadStatus: 'loading' | 'ready' | 'error'
+  waiting: RepresentativeInteraction[]
+  activeInteractions: RepresentativeInteraction[]
+  completed: RepresentativeInteraction[]
+  openTabs: RepresentativeInteraction[]
+  selectedInteraction: RepresentativeInteraction | null
+  hiddenActiveInteractions: RepresentativeInteraction[]
+  pickupNext: () => string | null
+  selectInteraction: (id: string) => void
+  hideTab: (id: string) => void
+  reopenTab: (id: string) => void
+  resumeVoice: (id: string) => void
+  toggleMute: (id: string) => void
+  setSection: (id: string, section: InteractionSection) => void
+  setDraft: (id: string, draft: string) => void
+  sendRepresentativeMessage: (id: string) => void
+  completeInteraction: (id: string, disposition: InteractionDisposition) => void
+  simulateIncomingMessage: (id: string) => void
+  resetDemo: () => void
+  retryDemo: () => void
 }
 
 export const SessionsContext = createContext<SessionsContextValue | null>(null)

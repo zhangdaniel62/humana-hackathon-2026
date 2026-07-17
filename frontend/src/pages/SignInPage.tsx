@@ -73,7 +73,7 @@ export function SignInPage() {
         <div className="mt-6 border-t border-border-secondary pt-4">
           <p className="text-mini text-text-tertiary">Members don't need an account.</p>
           <Button className="mt-2 w-full" onPress={() => navigate('/member')}>
-            Continue as a member
+            Chat with Claim Assist
           </Button>
         </div>
       </div>

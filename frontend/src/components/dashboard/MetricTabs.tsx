@@ -23,6 +23,7 @@ export function AhtTab({ data }: { data: OperationsDashboardResponse }) {
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile
           label="Average handle time"
+          info="Average call-session duration. The baseline is a labeled synthetic assumption and after-call work is not separately tracked."
           value={formatMinutes(summary.average_handle_time_minutes)}
           delta={ahtDelta(summary.average_handle_time_minutes, baseline.aht_minutes)}
           caption={
@@ -54,6 +55,7 @@ export function FcrTab({ data }: { data: OperationsDashboardResponse }) {
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile
           label="First call resolution"
+          info="Resolved with no same-member, same-claim repeat within seven days. The matured initial-contact count is the denominator."
           value={formatRate(summary.first_contact_resolution_rate, 2)}
           delta={fcrDelta(summary.first_contact_resolution_rate, baseline.fcr_rate)}
           caption={cohortCaption(data)}
@@ -81,6 +83,7 @@ export function RepeatTab({ data }: { data: OperationsDashboardResponse }) {
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile
           label="Repeat contact rate"
+          info="Initial contacts followed by a same-member, same-claim repeat within seven days. The matured initial-contact count is the denominator."
           value={formatRate(summary.repeat_contact_rate, 2)}
           delta={repeatDelta(summary.repeat_contact_rate, baseline.repeat_contact_rate)}
           caption={cohortCaption(data)}
@@ -108,6 +111,7 @@ export function DenialsTab({ data }: { data: OperationsDashboardResponse }) {
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatTile
           label="Intervention coverage"
+          info="Corrective interventions recorded divided by identified at-risk claims. This is workflow completion, not a measured claim outcome."
           value={formatRate(interventions.recorded_coverage_rate)}
           caption={
             interventions.recorded_coverage_rate === null

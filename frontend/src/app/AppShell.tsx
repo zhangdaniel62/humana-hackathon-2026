@@ -120,7 +120,7 @@ export function AppShell() {
                   {({ isActive }) => (
                     <>
                       <NavIcon icon={Inbox} isActive={isActive} />
-                      Representative Queue
+                      Interaction Queue
                     </>
                   )}
                 </NavLink>
@@ -130,7 +130,7 @@ export function AppShell() {
                   {({ isActive }) => (
                     <>
                       <NavIcon icon={MessagesSquare} isActive={isActive} />
-                      Interaction Workspace
+                      Active Interactions
                     </>
                   )}
                 </NavLink>

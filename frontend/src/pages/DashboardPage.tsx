@@ -6,8 +6,8 @@ export function DashboardPage() {
   return (
     <div className="flex flex-col">
       <PageHeader
-        title="Dashboard"
-        description="Handle time, first-call resolution, repeat contacts, and preventable denials as sessions complete."
+        title="Operations Dashboard"
+        description="Synthetic operations data for handle time, seven-day matured contact outcomes, routing volume, representative workload, and corrective intervention activity. Recorded interventions do not prove a denial was prevented."
       />
       <DashboardPageFrame>{(data) => <OverviewTab data={data} />}</DashboardPageFrame>
     </div>

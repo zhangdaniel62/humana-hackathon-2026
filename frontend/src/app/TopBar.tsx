@@ -9,9 +9,11 @@ import { useSessions } from './sessions-context'
  */
 export function TopBar() {
   const { pathname } = useLocation()
-  const { sessions } = useSessions()
+  const { openTabs, hiddenActiveInteractions } = useSessions()
 
-  if (pathname !== '/workspace' || sessions.length === 0) return null
+  if (pathname !== '/workspace' || (openTabs.length === 0 && hiddenActiveInteractions.length === 0)) {
+    return null
+  }
 
   return (
     <header className="flex h-11 shrink-0 items-center px-4">

@@ -1,6 +1,7 @@
 import type { HTMLAttributes, ReactNode } from 'react'
 import { ArrowDown, ArrowRight, ArrowUp } from 'lucide-react'
 import { cn } from '@/lib/cn'
+import { InfoTooltip } from './InfoTooltip'
 import { Panel } from './Panel'
 
 export interface StatTileDelta {
@@ -14,6 +15,7 @@ export interface StatTileDelta {
 
 export interface StatTileProps extends HTMLAttributes<HTMLDivElement> {
   label: string
+  info?: string
   /** Already-formatted value; pass "—" for null figures. */
   value: string
   delta?: StatTileDelta
@@ -51,11 +53,14 @@ function Sparkline({ values }: { values: number[] }) {
 }
 
 /** Dashboard KPI tile: quiet label, prominent value, direction-aware delta. */
-export function StatTile({ label, value, delta, caption, sparkline, className, ...props }: StatTileProps) {
+export function StatTile({ label, info, value, delta, caption, sparkline, className, ...props }: StatTileProps) {
   const DeltaIcon = delta ? deltaIcons[delta.direction] : null
   return (
     <Panel {...props} className={cn('flex flex-col gap-1', className)}>
-      <div className="text-mini font-medium text-text-tertiary">{label}</div>
+      <div className="flex items-center gap-0.5 text-mini font-medium text-text-tertiary">
+        {label}
+        {info && <InfoTooltip label={`About ${label}`}>{info}</InfoTooltip>}
+      </div>
       <div className="flex items-end justify-between gap-3">
         <div className="text-title2 text-text-primary">{value}</div>
         {sparkline && sparkline.length > 1 && <Sparkline values={sparkline} />}

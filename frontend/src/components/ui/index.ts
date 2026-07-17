@@ -1,6 +1,7 @@
 export { Badge, Dot, type BadgeProps, type DotProps, type StatusVariant } from './Badge'
 export { Button, type ButtonProps } from './Button'
 export { Input, type InputProps } from './Input'
+export { InfoTooltip } from './InfoTooltip'
 export { Panel, type PanelProps } from './Panel'
 export { StatTile, type StatTileProps, type StatTileDelta } from './StatTile'
 export { Tab, TabList, TabPanel, Tabs } from './Tabs'
