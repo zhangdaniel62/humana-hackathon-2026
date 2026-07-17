@@ -1,5 +1,6 @@
 """Application-scoped Sentinel, projections, dashboard, and golden-path tests."""
 
+import pytest
 from fastapi.testclient import TestClient
 
 from main import app, sentinel
@@ -87,3 +88,35 @@ def test_session_summary_reports_incomplete_findings(
         "benefits",
         "readiness",
     ]
+
+
+def test_synthetic_operations_dashboard_empty_contract(
+    configured_auth_app, login_as
+) -> None:
+    with TestClient(configured_auth_app) as client:
+        login_as(client, UserRole.MANAGER)
+        response = client.get(
+            "/api/operations/dashboard?start=2026-01-01&end=2026-01-31&bucket=week"
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["metadata"]["data_label"] == "synthetic_demo"
+    assert payload["summary"]["completed_sessions"] == 0
+    assert payload["summary"]["average_handle_time_minutes"] is None
+    assert payload["summary"]["first_contact_resolution_rate"] is None
+    assert payload["summary"]["repeat_contact_rate"] is None
+    assert payload["trend"] == []
+    assert payload["interventions"]["recorded_coverage_rate"] is None
+    assert payload["manual_by_rep"] == []
+
+
+@pytest.mark.parametrize("role", [UserRole.CUSTOMER, UserRole.REP])
+def test_synthetic_operations_dashboard_is_manager_only(
+    configured_auth_app, login_as, role: UserRole
+) -> None:
+    with TestClient(configured_auth_app) as client:
+        login_as(client, role)
+        response = client.get("/api/operations/dashboard")
+
+    assert response.status_code == 403

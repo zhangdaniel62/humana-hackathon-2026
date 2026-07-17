@@ -22,7 +22,16 @@ from .readiness import (
     ReadinessFactor,
     ReadinessFactorSeverity,
 )
-from .operations import NotificationPreview, SessionSummary
+from .operations import (
+    InterventionFunnel,
+    NotificationPreview,
+    OperationsDashboard,
+    OperationsDashboardMetadata,
+    OperationsMetricSummary,
+    OperationsTrendPoint,
+    RepWorkload,
+    SessionSummary,
+)
 from .roi import ROICheckResult, ROIStatus
 from .sentinel import (
     AgentEvent,
@@ -72,15 +81,21 @@ __all__ = [
     "DenialDetails",
     "EventType",
     "GroundingReference",
+    "InterventionFunnel",
     "MetricsBaseline",
     "MetricsSnapshot",
     "NotificationPreview",
+    "OperationsDashboard",
+    "OperationsDashboardMetadata",
+    "OperationsMetricSummary",
+    "OperationsTrendPoint",
     "ReadinessEventPayload",
     "MemberSessionContext",
     "ReadinessFactor",
     "ReadinessFactorSeverity",
     "ROICheckResult",
     "ROIStatus",
+    "RepWorkload",
     "SentinelAlert",
     "SentinelSnapshot",
     "SessionSummary",

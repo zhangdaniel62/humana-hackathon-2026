@@ -116,3 +116,23 @@ The dashboard baseline is explicitly labeled `synthetic_demo_assumption`; it is
 not historical Humana performance.
 
 All included data is synthetic. Never add real PHI.
+
+## Persisted synthetic dashboard history
+
+Sentinel's `/api/metrics` projection remains the in-process view of live demo
+events. For multiweek charts, the manager-only
+`/api/operations/dashboard` endpoint reads deterministic synthetic history from
+the same local SQLite file used by authentication. Initialize it with:
+
+```shell
+uv run python -m src.operations.bootstrap
+```
+
+The persisted history is explicitly labeled `synthetic_demo`. Its call rows use
+only claim/member pairs already present in the immutable claims snapshot; it
+does not add or update claims, members, or adjudication outcomes. AHT is computed
+over calls in the selected range. FCR and repeat-contact rates use mature
+initial-contact cohorts with a seven-day observation window, and follow-up
+searches may extend beyond the reporting end date. The intervention funnel ends
+at a recorded corrective action and must be labeled intervention coverage, not
+denials prevented.

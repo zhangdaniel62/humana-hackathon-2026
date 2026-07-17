@@ -30,6 +30,7 @@ from src.auth.http import authentication_middleware
 from src.auth.websocket import WebSocketRouteGuardMiddleware
 from src.events import event_log
 from src.models import MetricsBaseline
+from src.operations import OperationsStore
 
 BACKEND_DIR = Path(__file__).resolve().parent
 logger = logging.getLogger(__name__)
@@ -50,17 +51,20 @@ app.state.auth_store = AuthStore(
     auth_settings.database_path,
     session_ttl=timedelta(hours=auth_settings.session_ttl_hours),
 )
-sentinel = SentinelAgent(
-    event_log,
-    baseline=MetricsBaseline(
-        aht_minutes=8.5,
-        fcr_rate=0.72,
-        repeat_contact_rate=0.18,
-        source_note="Labeled synthetic hackathon comparison assumptions",
-    ),
+metrics_baseline = MetricsBaseline(
+    aht_minutes=8.5,
+    fcr_rate=0.72,
+    repeat_contact_rate=0.18,
+    source_note="Labeled synthetic hackathon comparison assumptions",
 )
+sentinel = SentinelAgent(event_log, baseline=metrics_baseline)
 app.state.event_log = event_log
 app.state.sentinel = sentinel
+app.state.operations_store = OperationsStore(
+    auth_settings.database_path,
+    BACKEND_DIR.parent / "datasets",
+    baseline=metrics_baseline,
+)
 
 
 _adk_lifespan = app.router.lifespan_context
@@ -69,6 +73,14 @@ _adk_lifespan = app.router.lifespan_context
 @asynccontextmanager
 async def _claim_assist_lifespan(application):
     application.state.auth_store.initialize(
+        enable_demo_seed=application.state.auth_settings.enable_demo_seed
+    )
+    application.state.operations_store = OperationsStore(
+        application.state.auth_store.database_path,
+        BACKEND_DIR.parent / "datasets",
+        baseline=metrics_baseline,
+    )
+    application.state.operations_store.initialize(
         enable_demo_seed=application.state.auth_settings.enable_demo_seed
     )
     await sentinel.start(replay_existing=True)

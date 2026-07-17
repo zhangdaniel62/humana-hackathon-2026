@@ -59,8 +59,21 @@ Operational endpoints:
 - `GET /api/events`
 - `GET /api/alerts`
 - `GET /api/metrics`
+- `GET /api/operations/dashboard?start=YYYY-MM-DD&end=YYYY-MM-DD&bucket=week`
 - `GET /api/sessions/{session_id}/summary`
 - `POST /api/demo/golden-path` (synthetic local demo trigger)
+
+After starting the backend, inspect the chart-ready dashboard response with the
+development manager account:
+
+```shell
+curl -c /tmp/claim-assist-cookies.txt \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"manager","password":"ManagerDemo2026!"}' \
+  http://localhost:8000/api/auth/login
+curl -b /tmp/claim-assist-cookies.txt \
+  'http://localhost:8000/api/operations/dashboard?bucket=week'
+```
 
 The caller conversation backend is available at `WS /ws/conversation`, with
 `/ws/voice` retained as an alias. Customers and reps may enable Voice mode and
@@ -83,23 +96,28 @@ delivery status `not_sent`; no external message is delivered.
 
 ## Local authentication
 
-The backend uses a local SQLite user store with Argon2 password hashes and
-server-side session cookies. Create or refresh the runtime database from the
-tracked schema and development seed:
+The backend uses one local SQLite file for Argon2-backed users, server-side
+sessions, and synthetic operations history. Create or refresh it from the
+tracked schemas and deterministic development seeds:
 
 ```shell
-uv run python -m src.auth.bootstrap
+uv run python -m src.operations.bootstrap
 ```
 
-The generated `.data/auth.sqlite3` contains mutable login sessions and is not
-tracked. `src/auth/schema.sql` and `src/auth/demo_seed.sql` are tracked, so every
-checkout can reproduce the same development accounts:
+The generated `.data/auth.sqlite3` is not tracked. The supplied CSV/BigQuery
+datasets are never copied, expanded, or modified. The operations seed adds only
+new synthetic interaction facts whose claim/member pairs are validated against
+`datasets/claims.csv`.
 
 | Role | Username | Development-only password |
 |---|---|---|
 | Manager | `manager` | `ManagerDemo2026!` |
 | Customer | `customer` | `CustomerDemo2026!` |
 | Representative | `rep` | `RepDemo2026!` |
+| Dashboard representative | `rep.alex` | `RepDemo2026!` |
+| Dashboard representative | `rep.jordan` | `RepDemo2026!` |
+| Dashboard representative | `rep.morgan` | `RepDemo2026!` |
+| Dashboard representative | `rep.taylor` | `RepDemo2026!` |
 
 These credentials are synthetic and must not be reused for real users. Set
 `AUTH_ENABLE_DEMO_SEED=false` outside local or hackathon environments.
@@ -109,6 +127,15 @@ Auth endpoints:
 - `POST /api/auth/login` with `{"username":"...","password":"..."}`
 - `GET /api/auth/me`
 - `POST /api/auth/logout`
+
+The manager-only operations endpoint returns one chart-ready payload containing
+the synthetic baseline, AHT/FCR/repeat trends, seven-day cohort denominators,
+automated versus manual-review volume, per-rep manual workload, and the
+claim-intervention funnel. Repeat contact and FCR are derived from separate call
+rows; recent contacts remain immature until their seven-day follow-up window
+closes. When dates are omitted, trend output stops at the latest completed week
+or month while repeat detection can still inspect later follow-ups. Intervention
+coverage is not presented as proof that a denial was prevented.
 
 Managers can use the operations dashboard and raw ADK developer APIs. Customers
 and reps can use the current combined chat/call demo and connect to

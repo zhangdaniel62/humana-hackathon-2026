@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from .sentinel import MetricsBaseline
 
 
 class NotificationPreview(BaseModel):
@@ -42,3 +45,56 @@ class SessionSummary(BaseModel):
     intent_history: list[str] = Field(default_factory=list)
     missing_findings: list[str] = Field(default_factory=list)
 
+
+class OperationsDashboardMetadata(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    data_label: Literal["synthetic_demo"] = "synthetic_demo"
+    start: date
+    end: date
+    bucket: Literal["week", "month"]
+    repeat_window_days: Literal[7] = 7
+    observation_cutoff: datetime | None = None
+
+
+class OperationsMetricSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    completed_sessions: int = Field(ge=0)
+    average_handle_time_minutes: float | None = None
+    mature_initial_contacts: int = Field(ge=0)
+    first_contact_resolution_rate: float | None = None
+    repeat_contact_rate: float | None = None
+    automated_calls: int = Field(ge=0)
+    manual_review_calls: int = Field(ge=0)
+
+
+class OperationsTrendPoint(OperationsMetricSummary):
+    period_start: date
+
+
+class InterventionFunnel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    identified_claims: int = Field(ge=0)
+    recommended_claims: int = Field(ge=0)
+    recorded_claims: int = Field(ge=0)
+    recorded_coverage_rate: float | None = None
+
+
+class RepWorkload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    username: str
+    manual_review_calls: int = Field(ge=0)
+
+
+class OperationsDashboard(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    metadata: OperationsDashboardMetadata
+    baseline: MetricsBaseline
+    summary: OperationsMetricSummary
+    trend: list[OperationsTrendPoint]
+    interventions: InterventionFunnel
+    manual_by_rep: list[RepWorkload]

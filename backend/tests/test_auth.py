@@ -51,12 +51,17 @@ def test_tracked_demo_seed_is_idempotent_and_uses_argon2(tmp_path) -> None:
         ("customer", "customer"),
         ("manager", "manager"),
         ("rep", "rep"),
+        ("rep.alex", "rep"),
+        ("rep.jordan", "rep"),
+        ("rep.morgan", "rep"),
+        ("rep.taylor", "rep"),
     ]
     assert all(row[1].startswith("$argon2id$") for row in rows)
     assert "ManagerDemo2026!" not in "".join(row[1] for row in rows)
     assert store.authenticate(" MANAGER ", "ManagerDemo2026!") is not None
     assert store.authenticate("customer", "CustomerDemo2026!") is not None
     assert store.authenticate("rep", "RepDemo2026!") is not None
+    assert store.authenticate("rep.alex", "RepDemo2026!") is not None
 
 
 def test_sessions_are_hashed_expire_and_can_be_revoked(tmp_path) -> None:

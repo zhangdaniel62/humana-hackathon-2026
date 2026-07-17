@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from ..auth.dependencies import CurrentUser, require_role
 from ..auth.models import UserRole
-from ..models import MetricsSnapshot, SentinelAlert, SessionSummary
+from ..models import (
+    MetricsSnapshot,
+    OperationsDashboard,
+    SentinelAlert,
+    SessionSummary,
+)
 from ..services.golden_path import run_golden_path
 from ..services.session_summary import session_summary_store
 
@@ -37,6 +44,27 @@ def get_alerts(request: Request) -> list[SentinelAlert]:
 )
 def get_metrics(request: Request) -> MetricsSnapshot:
     return request.app.state.sentinel.snapshot().metrics
+
+
+@router.get(
+    "/operations/dashboard",
+    response_model=OperationsDashboard,
+    dependencies=[manager_only],
+)
+def get_operations_dashboard(
+    request: Request,
+    start: date | None = Query(default=None),
+    end: date | None = Query(default=None),
+    bucket: Literal["week", "month"] = Query(default="week"),
+) -> OperationsDashboard:
+    try:
+        return request.app.state.operations_store.dashboard(
+            start=start,
+            end=end,
+            bucket=bucket,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/sessions/{session_id}/summary", response_model=SessionSummary)
