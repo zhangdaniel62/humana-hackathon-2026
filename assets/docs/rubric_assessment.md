@@ -10,10 +10,10 @@ in the judging environment.
 ## How to read the assessment
 
 - **Current** means the code and presentation assets present in this checkout.
-- **P2-complete** means Feature 12 and every item in Section 11 of
+- **Rating-5 gates complete** means Features 12–16 in
   `assets/docs/overall_plan.md` are implemented, reviewed, tested, stable, and
-  demonstrated. Merely adding those features without evidence or reliability
-  does not earn the projected score.
+  demonstrated with their required evidence. Merely adding breadth without
+  evidence or reliability does not earn the projected score.
 - Repository evidence is separated from assumptions. Synthetic operations data
   demonstrates calculation and presentation paths; it is not evidence that
   Humana outcomes improved.
@@ -25,13 +25,14 @@ in the judging environment.
 | Scenario | Round 1 point estimate | Plausible judged range | Round 2 readiness estimate | Plausible judged range |
 |---|---:|---:|---:|---:|
 | Current | **15/20** | **14–17** | **14/20** | **13–15** |
-| All P2 implemented well | **18/20** | **17–19** | **17/20** | **16–18** |
+| Rating-5 gates implemented well | **19/20** | **18–20** | **18/20** | **17–19** |
 
 The current entry is technically strong enough to be a credible Round 2
 candidate, but its largest judging risk is that much of the product experience
 is still exposed through backend-oriented fallback pages and APIs. Completing
-P2 would primarily improve judge-visible usability, breadth, and polish. It
-would not by itself prove real operational impact.
+the rating-5 gates would improve judge-visible usability, evaluated AI quality,
+multi-agent execution, proactive workflow depth, and runtime credibility. They
+would not by themselves prove real operational impact.
 
 ## Round 1 scoring
 
@@ -46,16 +47,16 @@ would not by itself prove real operational impact.
 
 **Current Round 1 point estimate: 15/20. Plausible judged range: 14–17.**
 
-### If all P2 work is implemented well
+### If all rating-5 gates are implemented well
 
 | Category | Score | Confidence | Why it moves |
 |---|---:|---|---|
-| Problem Understanding | **5/5** | Medium | Reviewed referral, modifier, and diagnosis/CPT rules plus population scanning and risk-factor aggregation would show deeper command of denial root causes and operational workflows. The score still depends on explaining which signals are reviewed rules versus assumptions. |
-| Technical Ambition / Difficulty | **5/5** | Medium | Population-wide scanning, meaningful aggregation, additional validated readiness logic, role-specific experiences, advanced filters, and live push would form a broad and difficult end-to-end system. This projection assumes the added scope remains modular, tested, and stable. |
-| Creativity and Innovation | **4/5** | Medium | The complete system would be substantially more proactive and workflow-aware, but most P2 additions deepen capabilities already named in the prompt. A 5 would be possible only if the team demonstrates a clearly differentiated proactive workflow and explains why it is more than a collection of features. |
-| Presentation and Collaboration | **4/5** | Low | A responsive, accessible login/customer/rep/manager experience would make the story far easier to follow and demonstrate. A 5 cannot be projected from implementation alone; it requires excellent rehearsal, seamless role handoffs, explicit tradeoffs, and visible team collaboration. |
+| Problem Understanding | **5/5** | Medium | The versioned evaluation corpus, explicit root-cause cases, reviewed readiness evidence, quality/safety thresholds, and closed-loop queue would tie workflow constraints directly to measurable outcomes. The score still depends on clearly separating synthetic evidence from real impact. |
+| Technical Ambition / Difficulty | **5/5** | Medium | Explicit ADK specialist delegation, typed handoffs, evaluated routing, trace evidence, durable adapters, restart-safe scanning, and complete role-specific experiences would form a difficult, defensible end-to-end system. This assumes the scope remains modular and stable. |
+| Creativity and Innovation | **5/5** | Medium | Population scanning that creates prioritized, evidence-backed rep work items and traces them through grounded intervention would demonstrate a differentiated proactive loop beyond a standard chatbot. |
+| Presentation and Collaboration | **4/5** | Low | A responsive role-specific product, evaluation results, agent traces, and one coherent prevention workflow would make the story far easier to demonstrate. A 5 cannot be projected from implementation alone; it requires excellent rehearsal, seamless role handoffs, explicit tradeoffs, and visible team collaboration. |
 
-**P2-complete Round 1 point estimate: 18/20. Plausible judged range: 17–19.**
+**Rating-5-gates Round 1 point estimate: 19/20. Plausible judged range: 18–20.**
 
 ## Round 2 scoring
 
@@ -70,16 +71,16 @@ would not by itself prove real operational impact.
 
 **Current Round 2 readiness estimate: 14/20. Plausible judged range: 13–15.**
 
-### If all P2 work is implemented well
+### If all rating-5 gates are implemented well
 
 | Category | Score | Confidence | Why it moves |
 |---|---:|---|---|
-| Solution Impact and Effectiveness | **4/5** | Medium | Population scanning and more complete reviewed risk rules would increase the number of actionable workflows, while the frontend would make them operationally usable. It remains a 4 until real or controlled outcome evidence demonstrates improvement. |
-| Initial AI Approach | **4/5** | Medium | P2 broadens the governed rule set and routing surface, but it does not automatically add evaluation, calibration, or a validated predictive method. A 5 requires evidence that the combined methods are accurate and reliable, not just broader. |
+| Solution Impact and Effectiveness | **4/5** | Medium | Population scanning and the closed-loop queue would increase actionable workflow coverage, while the frontend would make it operationally usable. It remains a 4 until real or controlled outcome evidence demonstrates improvement. |
+| Initial AI Approach | **5/5** | Medium | Versioned evaluation, explicit specialist delegation, typed handoffs, grounded deterministic services, safety thresholds, and trace evidence would combine multiple appropriate methods with auditable controls. |
 | User Experience | **5/5** | Medium | Distinct customer, rep, and manager surfaces; a help queue; structured result cards; accessible responsive polish; live updates; and complete error/loading states could create an intuitive cross-stakeholder experience. This assumes user flows are coherent and tested, not merely present. |
-| Feasibility / Reusability / Scalability | **4/5** | High | The additional work improves product completeness and reuse, but enterprise identity, durable distributed state/event storage, production integrations, audit controls, and outcome evaluation intentionally remain future work. |
+| Feasibility / Reusability / Scalability | **4/5** | High | Repository protocols, local durable adapters, restart-safe jobs, replay, health checks, and containerized startup improve reuse and credibility, but enterprise identity, managed distributed infrastructure, production integrations, and real outcome evaluation remain future work. |
 
-**P2-complete Round 2 readiness estimate: 17/20. Plausible judged range: 16–18.**
+**Rating-5-gates Round 2 readiness estimate: 18/20. Plausible judged range: 17–19.**
 
 ## Strongest repository evidence
 
@@ -129,12 +130,12 @@ would not by itself prove real operational impact.
 | Rank | Action | Likely rubric impact |
 |---:|---|---|
 | 1 | Implement and rehearse the role-specific frontend, especially the five-tab manager dashboard and rep help queue. | Largest improvement to Round 1 Presentation and Round 2 UX; also makes existing technical work visible. |
-| 2 | Turn the golden path into a tightly timed narrative that shows one pain point, one grounded action, and one defensible metric consequence at each step. Name owners and rehearse fallback transitions. | Improves Problem Understanding and Presentation without adding risky scope. |
-| 3 | Add an explicit evaluation slide or artifact: fixed test cases, grounding/ROI pass rates, unsupported-answer refusals, readiness-rule precision on reviewed fixtures, and latency where measured. | Strongest path from AI Approach 4 toward 5 and makes reliability claims auditable. |
-| 4 | Implement the population-wide pending-claim scan and provider/CPT/risk aggregation with deduplication and alert thresholds. | Raises Technical Ambition, Creativity, and expected Impact if the output is judge-visible. |
-| 5 | Add referral, modifier, and diagnosis/CPT rules only with reviewed compatibility data and focused counterexample tests. | Deepens problem understanding and AI responsibility; weak or invented rules would reduce validity. |
-| 6 | Add a clearly synthetic later-adjudication experiment only if its assumptions can be shown transparently; otherwise keep the current intervention-coverage language. | Could strengthen impact methodology, but must never be presented as observed denial prevention. |
-| 7 | Enable and test spoken AI output for rep Voice, verify complete customer/rep Chat and Voice behavior with judge-environment credentials, then finish a clean README runbook. | Resolves the product-contract mismatch and reduces demo failure and credibility risk. |
+| 2 | Implement Feature 13's versioned evaluation corpus, grounding/ROI/refusal/routing thresholds, latency measurements, and saved reports. | Strongest path from AI Approach 4 toward 5 and makes reliability claims auditable. |
+| 3 | Implement Feature 14's explicit ADK specialist delegation, typed handoffs, and authorized trace projection while preserving deterministic services. | Directly addresses the main Technical Ambition blocker. |
+| 4 | Implement Feature 15's population scan and evidence-backed rep queue with deduplication, transparent prioritization, and intervention progression. | Creates the differentiated proactive loop needed for Creativity 5. |
+| 5 | Implement Feature 16's durable repository adapters, replay/idempotency, health checks, and containerized startup. | Strengthens technical credibility, reuse, and feasibility. |
+| 6 | Turn the expanded golden path into a tightly timed narrative showing one pain point, agent handoff, grounded action, evaluation result, and defensible metric consequence. | Converts the new code evidence into Problem Understanding and Presentation points. |
+| 7 | Add referral, modifier, and diagnosis/CPT rules only with reviewed compatibility data and focused counterexample tests. | Deepens domain coverage; weak or invented rules would reduce validity. |
 
 ## Probability of advancing to Round 2
 
@@ -146,13 +147,12 @@ These are broad judgment ranges, not statistical forecasts:
   presentation quality create substantial downside. If the selection rate is
   unusually low or judges heavily reward visual polish, the true probability
   could be below this range.
-- **All P2 implemented well: approximately 70–85%.** A stable, polished,
-  role-specific product plus population scanning and reviewed additional rules
-  would remove the most visible gaps and support a plausible 17–19/20 Round 1
-  result. This range assumes the larger scope does not introduce demo failures
-  or unsupported clinical claims.
+- **Rating-5 gates implemented well: approximately 80–90%.** A stable,
+  role-specific product plus evaluated specialist delegation, a closed-loop
+  prevention queue, and durable runtime evidence would support a plausible
+  18–20/20 Round 1 result. This range assumes the larger scope does not
+  introduce demo failures or unsupported clinical claims.
 
 The most efficient route to Round 2 is not to maximize feature count. It is to
-make the existing grounded workflow unmistakably visible, demonstrate that its
-calculations and safety controls are real, and then add only the P2 work that
-can be rehearsed reliably.
+complete Features 12–16, make their evidence unmistakably visible, and add P2
+work only when the scoring gates and deterministic contingency remain stable.
