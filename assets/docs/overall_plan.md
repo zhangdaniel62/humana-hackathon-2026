@@ -19,7 +19,7 @@ feature. Status reflects the current repository, not the target architecture.
 |---|---|---|---|---|
 | FastAPI and ADK platform | **Implemented through P1** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/conversation`, `/ws/voice`, `/demo`, `/operations`, auth APIs, and the summary, live-operations, and persisted-dashboard APIs are mounted; lifecycle, authentication, and route behavior are verified. | Durable ADK/session persistence and distributed deployment remain future work. | Foundation; Features 0, 6, 9–10 |
 | Authentication and role access | **Hackathon backend implemented** | One local SQLite file stores users, hashed sessions, synthetic reps, and synthetic operations history. Argon2 passwords, opaque hashed sessions, tracked schemas/seeds, login/me/logout APIs, allowed-origin checks, HTTP/WebSocket RBAC, role capabilities, an explicit disabled-by-default local bypass, ADK identity propagation, and summary ownership are verified. | Login and role-specific pages are Feature 12; enterprise identity, MFA, recovery, rate limiting, managed secrets, and durable audit retention remain future work. | Feature 0; Feature 12 UI |
-| Chat and live voice | **Backend implemented with role gates** | Authenticated customers and reps use `/ws/conversation` or `/ws/voice` and can switch between Chat and Voice without losing the session. Both receive transcripts; customer sessions may receive spoken AI audio, while rep sessions are transcript-only so AI audio is not played into a rep/member call. The combined `/demo` adapter supports both roles. Continuous microphone input, interruption handling, validated text/mode input, session correlation, summary-aware turn completion, transcript de-duplication, explicit audio capability signaling, and typed safe errors are wired to the shared root-agent factory. | The separate frontend must render customer and rep chat/call experiences according to `agent_audio_enabled`. A credentialed microphone-to-live-model call remains an environment check; structured result cards are later UI work. | Features 0, 6, 8, 12 |
+| First-class Chat and Voice | **Backend modes implemented; rep audio parity pending** | Authenticated customers and reps use `/ws/conversation` or `/ws/voice` and can switch between Chat and Voice without losing the session. Chat is a complete product mode with typed turns and visible agent responses; it is not a Voice fallback. Voice supports microphone input and transcripts. Continuous input, interruption handling, validated text/mode frames, session correlation, summary-aware turn completion, transcript de-duplication, and typed safe errors are wired to the shared root-agent factory. | The current code suppresses spoken AI output for reps by setting `agent_audio_enabled=false`; this conflicts with the target first-class Voice contract and must be corrected so both roles receive full Voice behavior. A credentialed microphone-to-live-model call also remains an environment check. | Features 0, 6, 8, 12 |
 | Claim Story | **Implemented and integrated** | Exact BigQuery lookup with synthetic CSV fallback, deterministic timeline and denial guidance, grounding, confidence handling, escalation, shared findings, ROI enforcement, and typed denial/escalation events are verified. | Population-wide analysis and production data operations remain future work. | Features 3–5, 9 |
 | Benefits Q&A | **Implemented and integrated** | Deterministic coverage, prior authorization, cost, provider guidance, CSV/BigQuery clients, ambiguity handling, ROI refusal, shared findings, typed operational events, orchestrator routing, and summary projection are verified. | Production directory freshness and data-source operations remain future work. | Features 4, 6, 9 |
 | ROI controls | **Implemented and integrated** | One shared session context resolves verified, not-required, missing, expired, and unknown ROI; all member-specific tools fail closed, findings project through the summary API, and ROI-gap/session-start events feed Sentinel. | Production identity proofing and authorization submission remain future work. | Features 3, 6, 9 |
@@ -33,7 +33,7 @@ feature. Status reflects the current repository, not the target architecture.
 | Synthetic operations history | **Implemented and manager-only** | The shared local SQLite file is seeded idempotently with 1,521 call rows generated from 26 base-week cohorts, including 207 separate synthetic follow-up rows, automated/manual routing, four synthetic reps, and 26 claim-intervention workflow rows. The default completed-period view contains 1,520 rows across 26 weekly points and uses the trailing follow-up only for cohort observation. Supplied CSV/BigQuery source rows are never changed. | Production warehouse ingestion and real outcome linkage remain future work. | Features 0, 7, 10 |
 | Operations dashboard | **Backend complete; role-specific frontend pending** | `/operations` still displays the live Sentinel snapshot. `GET /api/operations/dashboard` adds manager-only weekly/monthly trends, date filtering, default completed-period behavior, manual-versus-automated volumes, per-rep workload, and the intervention funnel from persisted synthetic data. | Implement the five-tab frontend from `assets/docs/dashboard_frontend_contract.md`; advanced breakdowns and push updates remain stretch work. | Features 0, 10, 12 |
 | Expanded golden path | **Implemented with deterministic fallback** | A fixed-ID API/dashboard trigger assembles ROI, denied Claim Story, Benefits, readiness, notification preview, recorded intervention, events, alerts, and metric update; a rendered screenshot backup is stored in `assets/images/`. | Live microphone/model access remains an environment check. | Feature 11 |
-| Role-specific frontend | **Separate workstream** | The backend returns `manager_dashboard`, `chat`, `rep_queue`, and `voice` capabilities and enforces them server-side. The combined `/demo` page remains the customer/rep Voice fallback with typed input, and the manager dashboard handoff documents exact response fields and page mappings. | Build login plus customer chat/call, rep queue/chat/call, and manager dashboard pages without moving domain or authorization logic into the browser. A dedicated rep help-queue projection/API is still required. | Feature 12 |
+| Role-specific frontend | **Separate workstream** | The backend returns `manager_dashboard`, `chat`, `rep_queue`, and `voice` capabilities and enforces them server-side. The combined `/demo` page is a legacy Voice-first validation surface with optional typed input, not the target Chat experience. The manager dashboard handoff documents exact response fields and page mappings. | Build login plus equal first-class Chat and Voice experiences for customers and reps, and the manager dashboard, without moving domain or authorization logic into the browser. A dedicated rep help-queue projection/API is still required. | Feature 12 |
 
 Current verified backend checkpoint: **152 tests passed, 3 skipped, and 216
 subtests passed**. At user direction, this checkpoint was verified through
@@ -47,9 +47,10 @@ The complete hackathon demo should show one grounded workflow:
 
 1. Authenticate as a customer, representative, or manager and expose only the
    capabilities assigned to that role.
-2. As a customer or representative, start in Chat, explicitly choose Voice,
-   and switch modes without losing the session; spoken AI audio is enabled only
-   for the customer-facing assistant experience.
+2. As a customer or representative, choose either first-class Chat or
+   first-class Voice and switch modes without losing the session. Chat provides
+   complete typed interaction; Voice provides complete spoken interaction for
+   both roles.
 3. Establish caller identity, subject member, and session context.
 4. Apply Release of Information (ROI) controls when the caller represents
    another adult member.
@@ -94,7 +95,7 @@ make an earlier feature truthful.
 |---|---|
 | **P0 — Critical path** | Implement in order. These features create the strongest rubric-aligned, end-to-end story. |
 | **P1 — High-value integration** | Implement after the P0 checkpoint is stable. These improve operational visibility and presentation. |
-| **P2 — Stretch** | Implement only if the complete fallback demo remains reliable. |
+| **P2 — Stretch** | Implement only if the complete demo and its deterministic contingency path remain reliable. |
 | **Future** | Present as the enterprise path; do not attempt during the hackathon. |
 
 ### Honest prototype language
@@ -125,20 +126,22 @@ but it must be labeled accurately:
 
 Claim Assist targets three role-specific user-facing surfaces:
 
-- **Customer experience:** Chat and optional Voice with spoken AI responses,
+- **Customer experience:** equal first-class Chat and Voice with complete typed
+  or spoken AI responses,
   plus the customer's own claim stories, benefit answers, ROI guidance,
   readiness results, notification previews, and safe escalation.
 - **Representative experience:** a future queue of customers who need help,
-  plus Chat and transcript-only Voice participation, structured results, and
-  authorized access to session summaries needed to assist callers. AI audio is
-  not played into the representative/member call.
+  plus equal first-class Chat and Voice with complete typed or spoken AI
+  responses, structured results, and authorized access to session summaries
+  needed to assist callers.
 - **Operations/manager experience:** manager-only alerts plus weekly/monthly AHT,
   FCR, repeat-contact, automated/manual routing, per-rep manual workload, and
   intervention funnel. Live Sentinel metrics remain available for the
   current session/event population.
 
-The current customer/rep static browser-microphone page at `/demo` is the
-required low-dependency audio fallback. Authentication currently exposes an API contract,
+The current customer/rep static browser-microphone page at `/demo` is a
+low-dependency Voice validation surface. It does not define Chat as a fallback
+or replace the required first-class Chat UI. Authentication currently exposes an API contract,
 not a login page. The full login, customer, rep, and manager frontend is a
 separate workstream against the contracts in this document; it is not a
 prerequisite for the backend domain workflow.
@@ -150,8 +153,8 @@ flowchart TD
     Customer["Customer"]
     Rep["Representative"]
     Manager["Manager"]
-    CustomerUI["Future customer experience<br/>Chat, spoken Voice, own results"]
-    RepUI["Future rep experience<br/>Help queue, Chat, transcript-only Voice"]
+    CustomerUI["Future customer experience<br/>first-class Chat + Voice, own results"]
+    RepUI["Future rep experience<br/>Help queue, first-class Chat + Voice"]
     ManagerUI["Manager operations dashboard"]
     Auth["Auth API + RBAC<br/>opaque session cookie"]
     AuthDB["Shared local SQLite<br/>users, sessions, and synthetic operations"]
@@ -179,8 +182,8 @@ flowchart TD
     ManagerUI --> Auth
     Auth --> AuthDB
     Auth -.->|"authenticated identity and capabilities"| API
-    CustomerUI -->|"/ws/conversation: Chat or spoken Voice"| API
-    RepUI -->|"/ws/conversation: Chat or transcript-only Voice"| API
+    CustomerUI -->|"/ws/conversation: full Chat or Voice"| API
+    RepUI -->|"/ws/conversation: full Chat or Voice"| API
     API --> Orchestrator
     Orchestrator --> ROI
     Orchestrator --> Claim
@@ -215,7 +218,7 @@ flowchart TD
 | Frontend | Authenticates through the backend, presents only role-appropriate navigation and capabilities, and renders conversation and structured results; never determines authorization, claim, coverage, ROI, or readiness facts. |
 | Authentication and RBAC | Verifies local demo credentials, owns opaque sessions, maps users to capabilities, protects HTTP/WebSocket routes, and supplies authenticated identity to ADK state. |
 | Persisted dashboard analytics | Reads the labeled synthetic operations tables in the shared local SQLite file and returns date-filtered summaries, weekly/monthly trends, routing workload, and intervention workflow counts through a manager-only API. |
-| FastAPI/ADK application | Hosts authenticated text endpoints, the role-gated conversation WebSockets, authorized operational/summary APIs, and the customer/rep fallback demo. |
+| FastAPI/ADK application | Hosts authenticated first-class Chat and Voice channels, authorized operational/summary APIs, and the legacy customer/rep Voice validation page. |
 | Orchestrator | Owns the conversation, establishes session state, enforces ROI, and invokes deterministic specialist tools while retaining control. |
 | Claim Story | Builds a grounded lifecycle and denial explanation for one exact claim. |
 | Benefits Q&A | Builds deterministic coverage, prior-authorization, cost, and provider guidance. |
@@ -334,8 +337,8 @@ Role and server-enforced capability contract:
 | Role | Capabilities | Current access | Future surface |
 |---|---|---|---|
 | `manager` | `manager_dashboard` | `/operations`, operational APIs, OpenAPI/docs, and raw ADK developer/session/run endpoints | Manager dashboard only |
-| `customer` | `chat`, `voice` | `/demo`, `/ws/conversation`, `/ws/voice`, spoken AI audio, and summaries owned by the authenticated customer | Customer Chat and Call page |
-| `rep` | `rep_queue`, `chat`, `voice` | `/demo`, `/ws/conversation`, `/ws/voice`, transcript-only agent responses, and current in-process summaries | Help queue plus Chat and transcript-only Call |
+| `customer` | `chat`, `voice` | `/demo`, `/ws/conversation`, `/ws/voice`, spoken AI audio, and summaries owned by the authenticated customer | Full Chat and Voice page |
+| `rep` | `rep_queue`, `chat`, `voice` | `/demo`, `/ws/conversation`, `/ws/voice`, and current in-process summaries; spoken AI audio is incorrectly suppressed in the current backend | Help queue plus full Chat and Voice |
 
 HTTP APIs return `401` for absent, invalid, or expired sessions and `403` for
 insufficient permissions. WebSockets fail before acceptance with close code
@@ -406,20 +409,26 @@ values.
 
 ### Chat and Voice conversation channel
 
-The implemented conversation endpoint is authenticated `WS /ws/conversation`.
-Customers and reps may use Chat or Voice; the backward-compatible
-`WS /ws/voice` route accepts both roles. Each accepted socket creates one ADK
-session under the authenticated user ID and begins in `chat` mode. A mode
-change does not create a new session, so caller identity, ROI status, intent
-history, and structured specialist findings remain available.
+The product conversation endpoint is authenticated `WS /ws/conversation`.
+Customers and reps may use complete Chat or Voice experiences; the
+backward-compatible `WS /ws/voice` route accepts both roles. Each accepted
+socket creates one ADK session under the authenticated user ID and begins in
+`chat` mode. A mode change does not create a new session, so caller identity,
+ROI status, intent history, and structured specialist findings remain
+available. Starting in Chat is a default, not a fallback designation.
 
-Both separate frontends initially select Chat and must not request microphone
-permission or send microphone frames until the user explicitly selects Voice.
-Customer sessions set `agent_audio_enabled: true` and may play spoken AI audio;
-rep sessions set it to `false` and render the same AI response as transcripts
-without playing it into the rep/member call. Switching back to Chat must stop
-microphone capture and any queued playback while leaving the socket and session
-active.
+Both separate frontends may initially select Chat and must not request
+microphone permission or send microphone frames until the user explicitly
+selects Voice. Chat must support complete typed turns and agent responses.
+Voice must support complete microphone input, transcripts, and spoken AI
+responses for customers and reps. Switching back to Chat must stop microphone
+capture and queued playback while leaving the socket and session active.
+
+Current implementation gap: `backend/src/api/voice.py` sets
+`agent_audio_enabled` only for customers, leaving rep Voice transcript-only.
+That behavior and its tests document the current code, not the target product
+contract. The backend must enable spoken AI output for both Voice-capable roles
+and update the affected tests before this channel is marked fully complete.
 
 #### Browser-to-server frames
 
@@ -427,7 +436,7 @@ active.
 |---|---|---|
 | `{"type":"text","text":"..."}` | Implemented | Sends validated typed input in either mode. Text is trimmed, must be non-empty, and is limited to 4,000 characters. |
 | `{"type":"set_mode","mode":"chat"}` | Implemented | Selects text-only presentation without resetting the session. |
-| `{"type":"set_mode","mode":"voice"}` | Implemented for customers and reps | Enables microphone input for the same session. Spoken-response frames are sent only when `agent_audio_enabled` is true. |
+| `{"type":"set_mode","mode":"voice"}` | Implemented for customers and reps | Enables full microphone input and spoken-response output for the same session. Current rep output parity remains an implementation gap. |
 | Binary | Implemented for customers and reps in Voice only | Raw signed PCM16 little-endian, mono, 16 kHz microphone audio. Audio sent while Chat is active is rejected with `voice_mode_required`. |
 | `{"type":"end_turn"}` | Deferred | Not used while the live model uses automatic activity detection. Add only with an explicitly configured push-to-talk flow. |
 
@@ -437,7 +446,7 @@ active.
 |---|---|
 | `session_started` | Announces `session_id`, initial `mode: "chat"`, `summary_url`, `agent_audio_enabled`, and the input/output audio formats before the first turn. |
 | `mode_changed` | Confirms the active `chat` or `voice` mode. |
-| Binary | Raw signed PCM16 little-endian, mono, 24 kHz agent audio; emitted only in Voice mode for customer sessions with `agent_audio_enabled: true`. |
+| Binary | Raw signed PCM16 little-endian, mono, 24 kHz agent audio; target behavior emits it in Voice mode for customers and reps. Current code emits it only when `agent_audio_enabled` is true and incorrectly disables that flag for reps. |
 | `user_transcript` | Caller transcript fragment produced by live audio transcription. |
 | `agent_transcript` | Agent response transcript fragment; this is the visible response in Chat mode. |
 | `interrupted` | Indicates caller barge-in; the frontend must immediately stop queued playback. |
@@ -445,9 +454,9 @@ active.
 | `error` | Returns a user-safe code, message, and retryable flag. Implemented codes are `invalid_message`, `voice_forbidden`, `voice_mode_required`, `session_initialization_failed`, and `live_model_unavailable`; exception details are never sent to the browser. |
 
 The conversation runner uses the configured audio-native live model and keeps
-the same deterministic orchestrator tools in both modes. Chat suppresses audio
-frames and renders the agent transcript; customer Voice adds spoken audio,
-while rep Voice remains transcript-only. The existing `/run` and `/run_sse` endpoints remain
+the same deterministic orchestrator tools in both modes. Chat renders the full
+agent response as text; Voice renders transcripts and the full agent response
+as audio for either conversational role. The existing `/run` and `/run_sse` endpoints remain
 available as manager-only ADK developer channels, not customer or rep product
 APIs.
 
@@ -470,17 +479,19 @@ Current channel configuration:
 The live channel publishes `session_started` and `session_completed` events
 with conversation metadata. Session completion conservatively does not infer
 resolution, repeat contact, or human escalation merely from socket closure.
-The customer/rep static `/demo` page remains a Voice fallback with optional
-typed input: its Start call action immediately sends `set_mode: "voice"` and
-obeys `agent_audio_enabled`. It has no Chat/Voice mode selector and is not the
-final customer or rep frontend.
+The customer/rep static `/demo` page remains a legacy Voice-first validation
+surface with optional typed input: its Start call action immediately sends
+`set_mode: "voice"` and obeys `agent_audio_enabled`. It has no Chat/Voice mode
+selector and is not the final customer or rep frontend. Its typed input does not
+make Chat a fallback; the final role-specific frontend must expose Chat as a
+complete, independently usable mode.
 
 Voice clients must request mono audio with echo cancellation and noise
 suppression, capture through an `AudioWorklet`, downsample to 16 kHz, and encode
-signed PCM16 little-endian frames. When `agent_audio_enabled` is true, playback
+signed PCM16 little-endian frames. In Voice mode, playback
 must decode 24 kHz PCM16, schedule buffers without overlap or gaps, track active
 sources, and stop all queued audio on `interrupted`, mode change to Chat,
-disconnect, or session end. Rep clients must not play AI audio.
+disconnect, or session end for both customers and reps.
 
 Implementation references:
 
@@ -539,7 +550,8 @@ Readiness and intervention events must include:
 - Sentinel remains asynchronous and cannot block the caller response.
 - CSV-backed benefits remain available if BigQuery is unavailable, and the
   result reports its data source.
-- Every live-model workflow has a deterministic or typed fallback.
+- Every live-model workflow has a deterministic recovery path. Chat and Voice
+  remain first-class modes; neither is labeled as the other's fallback.
 
 ## 10. Prioritized implementation roadmap
 
@@ -573,8 +585,8 @@ Completed deliverables:
 - [x] HTTP and WebSocket `401`/`403` and `4401`/`4403` behavior
 - [x] manager-only operations and ADK developer surfaces
 - [x] customer Chat/Voice, spoken AI audio, and owned-summary access
-- [x] rep Chat/Voice with transcript-only AI responses and authenticated
-  identity in ADK session state
+- [x] rep Chat/Voice access, transcripts, and authenticated identity in ADK
+  session state
 - [x] isolated auth, role-matrix, ownership, origin, bootstrap, and integration
   tests
 
@@ -716,7 +728,7 @@ Deliverables:
 **Feature complete when:** a caller session can be retrieved as validated JSON.
 
 **Safe stopping point:** use the endpoint directly or render its JSON in the
-existing fallback page. WebSocket `domain_result` messages are unnecessary.
+existing validation page. WebSocket `domain_result` messages are unnecessary.
 
 ### Feature 7 — Metrics methodology and intervention metric
 
@@ -860,7 +872,8 @@ Reliability requirements:
 - fixed synthetic IDs
 - reproducible synthetic demo users from the tracked auth seed
 - cached or deterministic fallback responses
-- Chat mode and typed fallback for Voice
+- complete Chat-mode and Voice-mode paths, plus a deterministic offline
+  contingency when live-model access is unavailable
 - screenshot or video backup
 
 **Feature complete when:** the script succeeds repeatedly in the presentation
@@ -883,10 +896,10 @@ they form one live transaction.
 Minimum scope:
 
 - [ ] `/login` using the auth APIs and the returned role/capability contract
-- [ ] customer page with Chat and Call controls plus spoken AI playback only
-  when `agent_audio_enabled` is true
-- [ ] rep page with a help-needed queue plus Chat and transcript-only Call
-  controls
+- [ ] customer page with equal first-class Chat and Voice controls plus spoken
+  AI playback in Voice
+- [ ] rep page with a help-needed queue plus equal first-class Chat and Voice
+  controls with spoken AI playback in Voice
 - [ ] manager page with Overview, AHT, FCR, Repeat Contact Rate, and Denial
   Intervention tabs backed by the documented persisted-dashboard contract
 - [ ] capability-based navigation that still relies on backend enforcement for
@@ -899,8 +912,8 @@ Minimum scope:
   selects Voice
 - [ ] complete microphone cleanup and, where enabled, audio-queue cancellation
   when the user returns to Chat or ends the session
-- [ ] typed conversation, caller/agent transcripts, customer spoken playback,
-  rep transcript-only responses, barge-in, and user-safe
+- [ ] complete typed conversation, caller/agent transcripts, customer and rep
+  spoken playback in Voice, barge-in, and user-safe
   authentication/disconnection/error states
 - [ ] `session_started` and `turn_complete` handling through the emitted
   authorized `summary_url`
@@ -922,8 +935,8 @@ navigation item is presentation only; backend `401`/`403` and `4401`/`4403`
 responses remain authoritative.
 
 **Feature complete when:** each seeded role lands on only its intended surface;
-customers can use Chat or spoken Voice, reps can see the help queue and use Chat
-or transcript-only Call, managers can see the dashboard, structured cards
+customers can use complete Chat or Voice, reps can see the help queue and use
+complete Chat or Voice, managers can see the dashboard, structured cards
 refresh after turns, and direct unauthorized route/API/socket attempts remain
 blocked.
 
@@ -934,7 +947,8 @@ backend-owned verification surfaces while it is integrated.
 ## 11. Stretch features requiring refinement
 
 In addition to Feature 12, these are the remaining **P2** stretch items.
-Implement them only after the complete P0/P1 fallback demo is stable:
+Implement them only after the complete P0/P1 demo and deterministic contingency
+path are stable:
 
 | Stretch feature | Required refinement |
 |---|---|

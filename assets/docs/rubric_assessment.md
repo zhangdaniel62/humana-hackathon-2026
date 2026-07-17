@@ -65,7 +65,7 @@ would not by itself prove real operational impact.
 |---|---:|---|---|
 | Solution Impact and Effectiveness | **3/5** | High | The system addresses all four target metric areas and demonstrates transparent calculations using labeled synthetic data. It shows credible potential, not measured improvement in real workflow conditions. There is no linked final adjudication outcome and therefore no demonstrated preventable-denial reduction. |
 | Initial AI Approach | **4/5** | High | The approach is grounded and responsible: deterministic domain services, typed outputs, exact-record lookup, ambiguity handling, ROI fail-closed behavior, claim-ID confirmation, safe escalation, and LLM narration through ADK. A 5 would benefit from explicit quality evaluation, retrieval/routing evaluation, calibrated confidence evidence, and stronger demonstrated multi-agent execution. |
-| User Experience | **3/5** | High | Plain-language agent instructions, transcripts, safe next steps, structured summaries, a voice fallback, and an operations view support the primary workflow. The missing role-specific frontend, help queue, manager trend charts, and polished state handling prevent a 4. |
+| User Experience | **3/5** | High | Plain-language agent instructions, transcripts, safe next steps, structured summaries, a legacy Voice validation page, and an operations view support the primary workflow. The missing first-class role-specific Chat/Voice frontend, help queue, manager trend charts, and polished state handling prevent a 4. |
 | Feasibility / Reusability / Scalability | **4/5** | High | The code has modular services, Pydantic contracts, repository adapters, fallback data sources, server-side RBAC, deterministic seeds, and a passing automated suite. The current SQLite auth/analytics database, in-memory sessions/events, local credentials, and missing production integrations are appropriate hackathon boundaries but not enterprise-ready scale. |
 
 **Current Round 2 readiness estimate: 14/20. Plausible judged range: 13–15.**
@@ -118,10 +118,11 @@ would not by itself prove real operational impact.
 6. **Presentation and collaboration are unverified.** The plan still needs
    named owners, rehearsed transitions, a concise metric story, and a tested
    fallback decision tree.
-7. **A credentialed live-model Voice run remains environment-dependent.** The
-   implemented contract consistently allows customer and rep Voice, enables
-   spoken AI playback only for customers, and keeps rep Voice transcript-only;
-   the team still needs to verify that flow in the judging environment.
+7. **First-class Voice parity is incomplete.** Both roles can select Voice and
+   receive transcripts, but the current backend suppresses spoken AI output for
+   reps even though the product contract now requires complete Chat and Voice
+   for both roles. A credentialed live-model run also remains
+   environment-dependent.
 
 ## Highest-impact next actions
 
@@ -133,7 +134,7 @@ would not by itself prove real operational impact.
 | 4 | Implement the population-wide pending-claim scan and provider/CPT/risk aggregation with deduplication and alert thresholds. | Raises Technical Ambition, Creativity, and expected Impact if the output is judge-visible. |
 | 5 | Add referral, modifier, and diagnosis/CPT rules only with reviewed compatibility data and focused counterexample tests. | Deepens problem understanding and AI responsibility; weak or invented rules would reduce validity. |
 | 6 | Add a clearly synthetic later-adjudication experiment only if its assumptions can be shown transparently; otherwise keep the current intervention-coverage language. | Could strengthen impact methodology, but must never be presented as observed denial prevention. |
-| 7 | Verify the documented customer-spoken/rep-transcript-only Voice behavior with judge-environment credentials, then finish a clean README runbook from bootstrap through login, demo, dashboard, and fallback. | Reduces demo failure and credibility risk. |
+| 7 | Enable and test spoken AI output for rep Voice, verify complete customer/rep Chat and Voice behavior with judge-environment credentials, then finish a clean README runbook. | Resolves the product-contract mismatch and reduces demo failure and credibility risk. |
 
 ## Probability of advancing to Round 2
 
