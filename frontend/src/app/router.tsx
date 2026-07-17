@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppShell } from './AppShell'
+import { DashboardFiltersProvider } from './dashboard-filters'
 import { RequireAuth } from './RequireAuth'
 import { SessionsProvider } from './sessions'
 import { DashboardPage } from '@/pages/DashboardPage'
@@ -17,7 +18,9 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <SessionsProvider>
-          <AppShell />
+          <DashboardFiltersProvider>
+            <AppShell />
+          </DashboardFiltersProvider>
         </SessionsProvider>
       </RequireAuth>
     ),

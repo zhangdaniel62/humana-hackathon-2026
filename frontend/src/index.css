@@ -33,6 +33,11 @@
   --color-accent: lch(48% 59 288);
   --color-accent-hover: lch(43% 59 288);
 
+  /* Chart second series — a muted in-hue neutral, deliberately not a second
+     accent or status color. Validated against --color-bg-secondary for CVD
+     and normal-vision separation from the accent (dataviz six checks). */
+  --color-chart-muted: lch(58% 4.5 272);
+
   /* §1 Status — soft tinted bg + matching border + saturated text */
   --color-info: hsl(210 92% 45%);
   --color-info-bg: hsl(208 100% 97%);
