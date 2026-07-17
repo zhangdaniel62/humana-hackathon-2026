@@ -11,11 +11,15 @@ from ..clients.member_records import (
     MemberRecordsClient,
     create_member_records_client,
 )
+from ..events import EventLog, event_log
 from ..services.claim_readiness import ClaimReadinessService
 from ..services.claim_story import ClaimStoryService
 from ..settings import Settings, settings as default_settings
 from .benefits import find_provider_tool, lookup_coverage
-from .claim_readiness import build_screen_claim_readiness_tool
+from .claim_readiness import (
+    build_record_corrective_intervention_tool,
+    build_screen_claim_readiness_tool,
+)
 from .claim_story import build_lookup_claim_story_tool
 from .session_context import build_establish_member_context_tool
 
@@ -48,6 +52,8 @@ Conversation rules:
 - After confirmation, call screen_claim_readiness once for a readiness
   question. Describe it as a rules-based Claim Readiness screen, never as a
   prediction or probability.
+- When the caller confirms that a recommended readiness action was taken, call
+  record_corrective_intervention. Never say that recording it prevented a denial.
 - A readiness risk band is a rules classification, not a probability.
   Data completeness describes the inputs, not predictive confidence.
 - Never invent claim facts, coverage rules, denial reasons, readiness factors,
@@ -75,6 +81,7 @@ def create_voice_orchestrator(
     claims_repository: ClaimsRepository | None = None,
     model_name: str | None = None,
     member_records_client: MemberRecordsClient | None = None,
+    events: EventLog | None = None,
 ) -> LlmAgent:
     """Create the root agent that fronts the caller channel.
 
@@ -98,6 +105,7 @@ def create_voice_orchestrator(
     )
     claim_story_service = ClaimStoryService(resolved_repository)
     readiness_service = ClaimReadinessService(resolved_repository)
+    resolved_events = events or event_log
     if model_name is None:
         # The live model is only served in some regions (us-central1 for this
         # project), which may differ from GOOGLE_CLOUD_LOCATION, so give the
@@ -122,15 +130,18 @@ def create_voice_orchestrator(
         instruction=VOICE_ORCHESTRATOR_INSTRUCTION,
         mode="chat",
         tools=[
-            build_establish_member_context_tool(resolved_member_records),
+            build_establish_member_context_tool(resolved_member_records, resolved_events),
             build_lookup_claim_story_tool(
                 claim_story_service,
                 enforce_member_context=True,
+                events=resolved_events,
             ),
             build_screen_claim_readiness_tool(
                 readiness_service,
                 enforce_member_context=True,
+                events=resolved_events,
             ),
+            build_record_corrective_intervention_tool(events=resolved_events),
             FunctionTool(lookup_coverage),
             FunctionTool(find_provider_tool),
         ],

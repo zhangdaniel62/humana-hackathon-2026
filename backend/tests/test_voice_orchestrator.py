@@ -80,13 +80,14 @@ class VoiceOrchestratorTests(unittest.TestCase):
             "us-central1", agent.model.client_kwargs["location"]
         )
         self.assertEqual("chat", agent.mode)
-        self.assertEqual(5, len(agent.tools))
+        self.assertEqual(6, len(agent.tools))
         self.assertTrue(all(isinstance(tool, FunctionTool) for tool in agent.tools))
         self.assertEqual(
             [
                 "establish_member_context",
                 "lookup_claim_story",
                 "screen_claim_readiness",
+                "record_corrective_intervention",
                 "lookup_coverage",
                 "find_provider",
             ],
@@ -185,6 +186,7 @@ class VoiceOrchestratorTests(unittest.TestCase):
                 "claim_story",
                 "benefits_qa",
                 "claim_readiness",
+                "notification_preview",
             },
             set(context.state["agent_findings"]),
         )

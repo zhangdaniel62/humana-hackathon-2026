@@ -13,6 +13,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from time import monotonic
+from uuid import uuid4
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from google.adk.agents import LiveRequestQueue
@@ -21,6 +23,8 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from ..agents.orchestrator import create_voice_orchestrator
+from ..events import event_log
+from ..models import AgentEvent, EventType
 from ..settings import settings
 
 logger = logging.getLogger(__name__)
@@ -72,10 +76,14 @@ async def voice_call(websocket: WebSocket) -> None:
 
     await websocket.accept()
     runner = _get_runner()
+    session_id = str(uuid4())
     session = await runner.session_service.create_session(
         app_name=VOICE_APP_NAME,
         user_id=VOICE_USER_ID,
+        session_id=session_id,
+        state={"session_id": session_id},
     )
+    started_at = monotonic()
     live_queue = LiveRequestQueue()
     try:
         async with asyncio.TaskGroup() as tasks:
@@ -89,6 +97,20 @@ async def voice_call(websocket: WebSocket) -> None:
         logger.exception("Voice session %s failed", session.id)
     finally:
         live_queue.close()
+        event_log.publish_nowait(
+            AgentEvent(
+                session_id=session.id,
+                agent="orchestrator",
+                event_type=EventType.SESSION_COMPLETED,
+                payload={
+                    "duration_seconds": round(monotonic() - started_at, 2),
+                    "resolved": False,
+                    "repeat_contact": False,
+                    "human_escalation": False,
+                    "synthetic": True,
+                },
+            )
+        )
 
 
 async def _pump_caller_audio(

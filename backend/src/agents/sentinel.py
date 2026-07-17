@@ -65,7 +65,7 @@ Events expected from other agents:
        resolved
        repeat_contact
        human_escalation
-       preventable_denial_caught
+       first_contact_resolution (optional)
 
 6. Any agent requiring human review
    event_type: EventType.ESCALATION_TRIGGERED
@@ -183,6 +183,12 @@ class SentinelAgent:
             self._create_escalation_alert(event)
         elif event.event_type is EventType.COMPLIANCE_FLAG_DETECTED:
             self._create_compliance_alert(event)
+        elif event.event_type is EventType.DENIAL_RISK_DETECTED:
+            self._create_readiness_alert(event)
+        elif event.event_type is EventType.INTERVENTION_RECORDED:
+            self._mark_intervention_recorded(event)
+        elif event.event_type is EventType.NETWORK_GAP_DETECTED:
+            self._create_network_gap_alert(event)
 
         if event.event_type in self._CONTACT_EVENTS:
             self._detect_repeat_contact(event)
@@ -384,6 +390,72 @@ class SentinelAgent:
                 for key, value in event.payload.items()
                 if key not in {"description", "recommended_action"}
             },
+        )
+
+    def _create_readiness_alert(self, event: AgentEvent) -> None:
+        rule_id = str(event.payload["rule_id"])
+        risk_band = str(event.payload.get("risk_band", "warning"))
+        severity = (
+            AlertSeverity.HIGH if risk_band == "high" else AlertSeverity.MEDIUM
+        )
+        self._upsert_alert(
+            dedup_key=f"claim_readiness:{event.claim_id}:{rule_id}",
+            alert_type=AlertType.CLAIM_READINESS_RISK,
+            severity=severity,
+            title=f"Claim Readiness finding for {event.claim_id}",
+            description=(
+                f"Reviewed rule {rule_id} matched the synthetic claim evidence."
+            ),
+            recommended_action=str(event.payload["recommended_action"]),
+            event=event,
+            metadata={
+                "claim_id": event.claim_id,
+                "member_id": event.member_id,
+                "rule_id": rule_id,
+                "evidence": event.payload["evidence"],
+                "event_source": event.payload["event_source"],
+                "synthetic": event.payload["synthetic"],
+                "intervention_recorded": False,
+            },
+        )
+
+    def _mark_intervention_recorded(self, event: AgentEvent) -> None:
+        key = f"claim_readiness:{event.claim_id}:{event.payload['rule_id']}"
+        alert = self._alerts.get(key)
+        if alert is None:
+            return
+        metadata = {
+            **alert.metadata,
+            "intervention_recorded": True,
+            "recorded_action": event.payload.get("action"),
+        }
+        self._alerts[key] = alert.model_copy(
+            update={
+                "last_seen": event.timestamp,
+                "evidence_event_ids": [
+                    *alert.evidence_event_ids,
+                    event.event_id,
+                ][-self.settings.evidence_limit :],
+                "metadata": metadata,
+                "recommended_action": (
+                    "Verify the recorded correction is attached before final adjudication."
+                ),
+            }
+        )
+
+    def _create_network_gap_alert(self, event: AgentEvent) -> None:
+        specialty = str(event.payload.get("specialty", "requested specialty"))
+        self._upsert_alert(
+            dedup_key=f"network_gap:{event.member_id}:{specialty}",
+            alert_type=AlertType.NETWORK_GAP,
+            severity=AlertSeverity.MEDIUM,
+            title=f"Network access gap: {specialty}",
+            description=str(event.payload.get("detail", "Network gap detected")),
+            recommended_action=(
+                "Review directory capacity and preserve the grounded PCP referral path."
+            ),
+            event=event,
+            metadata=dict(event.payload),
         )
 
     def _upsert_alert(

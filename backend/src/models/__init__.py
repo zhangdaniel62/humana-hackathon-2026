@@ -22,6 +22,7 @@ from .readiness import (
     ReadinessFactor,
     ReadinessFactorSeverity,
 )
+from .operations import NotificationPreview, SessionSummary
 from .roi import ROICheckResult, ROIStatus
 from .sentinel import (
     AgentEvent,
@@ -30,6 +31,7 @@ from .sentinel import (
     EventType,
     MetricsBaseline,
     MetricsSnapshot,
+    ReadinessEventPayload,
     SentinelAlert,
     SentinelSnapshot,
 )
@@ -58,6 +60,8 @@ __all__ = [
     "GroundingReference",
     "MetricsBaseline",
     "MetricsSnapshot",
+    "NotificationPreview",
+    "ReadinessEventPayload",
     "MemberSessionContext",
     "ReadinessFactor",
     "ReadinessFactorSeverity",
@@ -65,4 +69,5 @@ __all__ = [
     "ROIStatus",
     "SentinelAlert",
     "SentinelSnapshot",
+    "SessionSummary",
 ]

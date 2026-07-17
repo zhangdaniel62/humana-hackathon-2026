@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 def utc_now() -> datetime:
@@ -18,6 +18,10 @@ class EventType(StrEnum):
     DENIAL_EXPLAINED = "denial_explained"
     ROI_GAP_DETECTED = "roi_gap_detected"
     COVERAGE_QUESTION_ANSWERED = "coverage_question_answered"
+    NETWORK_GAP_DETECTED = "network_gap_detected"
+    DENIAL_RISK_DETECTED = "denial_risk_detected"
+    INTERVENTION_RECOMMENDED = "intervention_recommended"
+    INTERVENTION_RECORDED = "intervention_recorded"
     ESCALATION_TRIGGERED = "escalation_triggered"
     COMPLIANCE_FLAG_DETECTED = "compliance_flag_detected"
 
@@ -28,6 +32,8 @@ class AlertType(StrEnum):
     REPEAT_CONTACT = "repeat_contact"
     ESCALATION = "escalation"
     COMPLIANCE_RISK = "compliance_risk"
+    CLAIM_READINESS_RISK = "claim_readiness_risk"
+    NETWORK_GAP = "network_gap"
 
 
 class AlertSeverity(StrEnum):
@@ -58,6 +64,33 @@ class AgentEvent(StrictModel):
             return value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc)
 
+    @model_validator(mode="after")
+    def validate_readiness_payload(self) -> AgentEvent:
+        if self.event_type in {
+            EventType.DENIAL_RISK_DETECTED,
+            EventType.INTERVENTION_RECOMMENDED,
+            EventType.INTERVENTION_RECORDED,
+        }:
+            if not self.claim_id or not self.member_id:
+                raise ValueError("readiness events require claim_id and member_id")
+            self.payload = ReadinessEventPayload.model_validate(self.payload).model_dump(
+                mode="json", exclude_none=True
+            )
+        return self
+
+
+class ReadinessEventPayload(StrictModel):
+    """Auditable evidence shared by readiness and intervention events."""
+
+    rule_id: str = Field(min_length=1)
+    evidence: dict[str, Any] = Field(min_length=1)
+    recommended_action: str = Field(min_length=1)
+    event_source: str = Field(min_length=1)
+    synthetic: bool = True
+    risk_band: str | None = None
+    action: str | None = None
+    notification_preview_id: str | None = None
+
 
 class SentinelAlert(StrictModel):
     alert_id: UUID = Field(default_factory=uuid4)
@@ -82,6 +115,7 @@ class MetricsBaseline(StrictModel):
     fcr_rate: float | None = Field(default=None, ge=0, le=1)
     repeat_contact_rate: float | None = Field(default=None, ge=0, le=1)
     source_note: str = "No baseline assumptions supplied"
+    data_label: Literal["synthetic_demo_assumption"] = "synthetic_demo_assumption"
 
 
 class MetricsSnapshot(StrictModel):
@@ -90,7 +124,9 @@ class MetricsSnapshot(StrictModel):
     first_contact_resolution_rate: float | None = None
     repeat_contact_rate: float | None = None
     escalation_rate: float | None = None
-    preventable_denials_caught: int = 0
+    roi_gap_rate: float | None = None
+    at_risk_claims_identified: int = 0
+    corrective_interventions_recorded: int = 0
     baseline: MetricsBaseline = Field(default_factory=MetricsBaseline)
     aht_change_rate: float | None = None
     fcr_change_rate: float | None = None
