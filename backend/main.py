@@ -10,6 +10,7 @@ Surface:
 - Browser microphone demo page: ``/demo``
 """
 
+import logging
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
@@ -31,7 +32,13 @@ from src.events import event_log
 from src.models import MetricsBaseline
 
 BACKEND_DIR = Path(__file__).resolve().parent
+logger = logging.getLogger(__name__)
 auth_settings = AuthSettings()
+if auth_settings.bypass_enabled:
+    logger.warning(
+        "AUTH BYPASS ENABLED: all requests use the synthetic %s identity",
+        auth_settings.bypass_role.value,
+    )
 
 app = get_fast_api_app(
     agents_dir=str(BACKEND_DIR / "agents"),

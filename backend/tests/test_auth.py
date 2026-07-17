@@ -117,7 +117,7 @@ def test_login_me_logout_and_cookie_contract(configured_auth_app, login_as) -> N
         "id": login.json()["user"]["id"],
         "username": "customer",
         "role": "customer",
-        "capabilities": ["chat"],
+        "capabilities": ["chat", "voice"],
     }
     set_cookie = login.headers["set-cookie"].lower()
     assert "httponly" in set_cookie
@@ -135,7 +135,7 @@ def test_login_me_logout_and_cookie_contract(configured_auth_app, login_as) -> N
     ("role", "metrics_status", "demo_status"),
     [
         (UserRole.MANAGER, 200, 403),
-        (UserRole.CUSTOMER, 403, 403),
+        (UserRole.CUSTOMER, 403, 200),
         (UserRole.REP, 403, 200),
     ],
 )
@@ -181,6 +181,38 @@ def test_customer_summary_access_is_owner_scoped(configured_auth_app, login_as) 
         session_summary_store.clear()
 
 
+def test_auth_bypass_uses_configured_role_without_elevating_permissions(
+    configured_auth_app,
+) -> None:
+    configured_auth_app.state.auth_settings = (
+        configured_auth_app.state.auth_settings.model_copy(
+            update={"bypass_enabled": True, "bypass_role": UserRole.CUSTOMER}
+        )
+    )
+    client = TestClient(configured_auth_app)
+
+    me = client.get("/api/auth/me")
+
+    assert me.status_code == 200
+    assert me.json()["user"] == {
+        "id": 0,
+        "username": "auth-bypass-customer",
+        "role": "customer",
+        "capabilities": ["chat", "voice"],
+    }
+    assert client.get("/demo/").status_code == 200
+    assert client.get("/api/metrics").status_code == 403
+    runner = _WaitingRunner()
+    with patch("src.api.voice._get_runner", return_value=runner):
+        with client.websocket_connect("/ws/conversation") as websocket:
+            started = websocket.receive_json()
+            assert started["type"] == "session_started"
+            assert started["agent_audio_enabled"] is True
+            assert session_summary_store.owner_user_id(started["session_id"]) == "0"
+            websocket.close()
+    session_summary_store.clear()
+
+
 def test_websocket_role_and_origin_enforcement(configured_auth_app, login_as) -> None:
     event_log.clear()
     session_summary_store.clear()
@@ -193,19 +225,26 @@ def test_websocket_role_and_origin_enforcement(configured_auth_app, login_as) ->
                 pass
         assert manager_denied.value.code == 4403
 
-        login_as(client, UserRole.CUSTOMER)
-        with pytest.raises(WebSocketDisconnect) as customer_voice_denied:
-            with client.websocket_connect("/ws/voice"):
-                pass
-        assert customer_voice_denied.value.code == 4403
-
         with patch("src.api.voice._get_runner", return_value=runner):
+            login_as(client, UserRole.CUSTOMER)
+            with client.websocket_connect("/ws/voice") as websocket:
+                started = websocket.receive_json()
+                assert started["type"] == "session_started"
+                assert started["agent_audio_enabled"] is True
+                websocket.send_json({"type": "set_mode", "mode": "voice"})
+                assert websocket.receive_json() == {
+                    "type": "mode_changed",
+                    "mode": "voice",
+                }
+                websocket.close()
+
             with client.websocket_connect("/ws/conversation") as websocket:
                 assert websocket.receive_json()["type"] == "session_started"
                 websocket.send_json({"type": "set_mode", "mode": "voice"})
-                error = websocket.receive_json()
-                assert error["type"] == "error"
-                assert error["code"] == "voice_forbidden"
+                assert websocket.receive_json() == {
+                    "type": "mode_changed",
+                    "mode": "voice",
+                }
                 websocket.close()
 
         login_as(client, UserRole.REP)
@@ -218,7 +257,9 @@ def test_websocket_role_and_origin_enforcement(configured_auth_app, login_as) ->
 
         with patch("src.api.voice._get_runner", return_value=runner):
             with client.websocket_connect("/ws/voice") as websocket:
-                assert websocket.receive_json()["type"] == "session_started"
+                started = websocket.receive_json()
+                assert started["type"] == "session_started"
+                assert started["agent_audio_enabled"] is False
                 websocket.close()
     finally:
         event_log.clear()

@@ -47,6 +47,7 @@ class VoiceSessionStarted(VoiceMessage):
     session_id: str
     summary_url: str
     mode: Literal["chat"] = "chat"
+    agent_audio_enabled: bool = True
     input_audio: VoiceAudioFormat = Field(
         default_factory=lambda: VoiceAudioFormat(sample_rate_hz=16_000)
     )

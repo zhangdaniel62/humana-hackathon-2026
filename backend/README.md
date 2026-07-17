@@ -63,13 +63,17 @@ Operational endpoints:
 - `POST /api/demo/golden-path` (synthetic local demo trigger)
 
 The caller conversation backend is available at `WS /ws/conversation`, with
-`/ws/voice` retained as an alias. It starts in Chat mode and emits
-`session_started` with a session ID, the session-summary URL, and the 16 kHz
-input / 24 kHz output PCM formats. Text uses
+`/ws/voice` retained as an alias. Customers and reps may enable Voice mode and
+receive streaming user and agent transcripts. Agent audio is sent only to
+customer sessions; rep sessions are transcript-only so the assistant is not
+played into a rep/customer call. The connection starts in Chat mode and emits
+`session_started` with a session ID, the session-summary URL,
+`agent_audio_enabled`, and the 16 kHz input / 24 kHz output PCM formats. Text uses
 `{"type":"text","text":"..."}`. The same session switches either direction
 with `{"type":"set_mode","mode":"chat|voice"}`; binary PCM16 microphone and
-spoken-response frames are enabled only in Voice mode. Each `turn_complete`
-message includes the summary URL for refreshing structured result cards.
+spoken-response frames are enabled only in Voice mode when
+`agent_audio_enabled` is true. Each `turn_complete` message includes the summary
+URL for refreshing structured result cards.
 Malformed typed messages and live-service failures return user-safe `error`
 messages; backend exception details are never sent to the browser.
 
@@ -106,7 +110,23 @@ Auth endpoints:
 - `GET /api/auth/me`
 - `POST /api/auth/logout`
 
-Managers can use the operations dashboard and raw ADK developer APIs. Reps can
-use the current combined chat/call demo. Customers and reps can connect to
-`/ws/conversation`, but only reps may enable voice. The future frontend should
-use the role and `capabilities` returned by the auth API to select its pages.
+Managers can use the operations dashboard and raw ADK developer APIs. Customers
+and reps can use the current combined chat/call demo and connect to
+`/ws/conversation`. Both roles may stream microphone audio and receive
+transcripts. Customer sessions receive spoken AI responses; rep sessions receive
+the same agent response as text without audio playback. The future frontend
+should use the role, `capabilities`, and `agent_audio_enabled` session field to
+select its presentation.
+
+For local testing without a login cookie, enable the explicit development-only
+auth bypass in `.env` and restart the server:
+
+```dotenv
+AUTH_BYPASS_ENABLED=true
+AUTH_BYPASS_ROLE=customer
+```
+
+Use `customer` to test spoken AI output or `rep` to test transcript-only calls.
+The bypass still enforces allowed browser origins and the selected role's
+permissions. It is disabled by default and must never be enabled in a deployed
+environment.

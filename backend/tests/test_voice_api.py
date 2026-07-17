@@ -11,6 +11,8 @@ from fastapi import WebSocketDisconnect
 
 from src.api.voice import (
     ConversationModeState,
+    TranscriptStreamState,
+    _build_run_config,
     _pump_agent_events,
     _pump_caller_audio,
     _run_conversation,
@@ -25,6 +27,13 @@ REP_USER = AuthUser(
     username="rep",
     role=UserRole.REP,
     capabilities=(Capability.REP_QUEUE, Capability.CHAT, Capability.VOICE),
+)
+
+CUSTOMER_USER = AuthUser(
+    id=2,
+    username="customer",
+    role=UserRole.CUSTOMER,
+    capabilities=(Capability.CHAT, Capability.VOICE),
 )
 
 
@@ -110,6 +119,24 @@ class EventRunner:
         )
 
 
+class RepeatedTranscriptRunner:
+    async def run_live(self, **kwargs):
+        updates = [
+            ("hello", "hi", False),
+            ("hello", "hi", False),
+            ("hello there", "hi there", True),
+            ("hello", "hi", True),
+        ]
+        for input_text, output_text, turn_complete in updates:
+            yield SimpleNamespace(
+                content=None,
+                input_transcription=SimpleNamespace(text=input_text),
+                output_transcription=SimpleNamespace(text=output_text),
+                interrupted=False,
+                turn_complete=turn_complete,
+            )
+
+
 def test_voice_connection_announces_session_and_records_lifecycle() -> None:
     websocket = StubWebSocket(
         [{"type": "websocket.disconnect", "code": 1000}]
@@ -117,7 +144,7 @@ def test_voice_connection_announces_session_and_records_lifecycle() -> None:
 
     runner = WaitingRunner()
     with patch("src.api.voice._get_runner", return_value=runner):
-        asyncio.run(_run_conversation(websocket, REP_USER, allow_voice=True))
+        asyncio.run(_run_conversation(websocket, REP_USER))
 
     assert websocket.accepted is True
     started = websocket.sent_json[0]
@@ -128,6 +155,7 @@ def test_voice_connection_announces_session_and_records_lifecycle() -> None:
     )
     assert started["input_audio"]["sample_rate_hz"] == 16_000
     assert started["output_audio"]["sample_rate_hz"] == 24_000
+    assert started["agent_audio_enabled"] is False
     assert session_summary_store.get(started["session_id"]).status == "incomplete"
     assert [event.event_type for event in event_log.events] == [
         EventType.SESSION_STARTED,
@@ -139,6 +167,16 @@ def test_voice_connection_announces_session_and_records_lifecycle() -> None:
     assert runner.session_service.last_kwargs["user_id"] == "3"
     assert runner.session_service.last_kwargs["state"]["auth_role"] == "rep"
     assert runner.run_kwargs["user_id"] == "3"
+
+
+def test_run_config_uses_less_sensitive_voice_activity_detection() -> None:
+    config = _build_run_config()
+    detection = config.realtime_input_config.automatic_activity_detection
+
+    assert detection.start_of_speech_sensitivity == "START_SENSITIVITY_LOW"
+    assert detection.end_of_speech_sensitivity == "END_SENSITIVITY_LOW"
+    assert detection.prefix_padding_ms == 300
+    assert detection.silence_duration_ms == 1_200
 
 
 def test_invalid_typed_message_is_rejected_without_ending_call() -> None:
@@ -242,6 +280,82 @@ def test_agent_events_include_summary_correlation() -> None:
     assert websocket.close_code == 1000
 
 
+def test_transcript_stream_state_handles_incremental_and_cumulative_updates() -> None:
+    state = TranscriptStreamState()
+
+    assert state.consume("hello") == "hello"
+    assert state.consume("hello") is None
+    assert state.consume("hello there") == " there"
+    assert state.consume("!") == "!"
+    state.reset()
+    assert state.consume("hello") == "hello"
+
+
+def test_agent_events_deduplicate_transcripts_and_reset_between_turns() -> None:
+    websocket = StubWebSocket()
+
+    asyncio.run(
+        _pump_agent_events(
+            websocket,
+            RepeatedTranscriptRunner(),
+            "session-123",
+            StubLiveQueue(),
+            ConversationModeState(),
+            "3",
+        )
+    )
+
+    transcripts = [
+        (message["type"], message["text"])
+        for message in websocket.sent_json
+        if message["type"].endswith("_transcript")
+    ]
+    assert transcripts == [
+        ("user_transcript", "hello"),
+        ("agent_transcript", "hi"),
+        ("user_transcript", " there"),
+        ("agent_transcript", " there"),
+        ("user_transcript", "hello"),
+        ("agent_transcript", "hi"),
+    ]
+
+
+def test_rep_voice_keeps_transcripts_but_suppresses_agent_audio() -> None:
+    websocket = StubWebSocket()
+
+    asyncio.run(
+        _pump_agent_events(
+            websocket,
+            EventRunner(),
+            "session-123",
+            StubLiveQueue(),
+            ConversationModeState(mode="voice", agent_audio_enabled=False),
+            "3",
+        )
+    )
+
+    assert websocket.sent_bytes == []
+    assert [message["type"] for message in websocket.sent_json] == [
+        "user_transcript",
+        "agent_transcript",
+        "interrupted",
+        "turn_complete",
+    ]
+
+
+def test_customer_voice_announces_spoken_agent_audio() -> None:
+    websocket = StubWebSocket(
+        [{"type": "websocket.disconnect", "code": 1000}]
+    )
+    runner = WaitingRunner()
+
+    with patch("src.api.voice._get_runner", return_value=runner):
+        asyncio.run(_run_conversation(websocket, CUSTOMER_USER))
+
+    assert websocket.sent_json[0]["type"] == "session_started"
+    assert websocket.sent_json[0]["agent_audio_enabled"] is True
+
+
 def test_chat_mode_suppresses_spoken_audio_but_keeps_transcripts() -> None:
     websocket = StubWebSocket()
 
@@ -271,7 +385,7 @@ def test_session_initialization_failure_is_user_safe() -> None:
     with patch(
         "src.api.voice._get_runner", side_effect=RuntimeError("secret detail")
     ):
-        asyncio.run(_run_conversation(websocket, REP_USER, allow_voice=True))
+        asyncio.run(_run_conversation(websocket, REP_USER))
 
     assert websocket.sent_json == [
         {

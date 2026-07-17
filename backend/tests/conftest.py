@@ -43,6 +43,7 @@ def configured_auth_app(auth_store):
     app.state.auth_settings = AuthSettings(
         database_path=auth_store.database_path,
         enable_demo_seed=False,
+        bypass_enabled=False,
         cookie_secure=False,
         allowed_origins=["http://testserver"],
     )

@@ -25,7 +25,7 @@ from google.genai import types
 from pydantic import ValidationError
 
 from ..agents.orchestrator import create_voice_orchestrator
-from ..auth.models import AuthUser, UserRole
+from ..auth.models import AuthUser, Capability, UserRole
 from ..events import event_log
 from ..models import (
     AgentEvent,
@@ -62,6 +62,32 @@ class ConversationModeState:
     mode: str = "chat"
     audio_warning_sent: bool = False
     voice_allowed: bool = True
+    agent_audio_enabled: bool = True
+
+
+@dataclass(slots=True)
+class TranscriptStreamState:
+    """Convert repeated or cumulative Live transcription updates into deltas."""
+
+    text: str = ""
+    last_update: str = ""
+
+    def consume(self, update: str) -> str | None:
+        if not update or update == self.last_update:
+            return None
+        self.last_update = update
+        if update == self.text:
+            return None
+        if update.startswith(self.text):
+            delta = update[len(self.text) :]
+            self.text = update
+            return delta or None
+        self.text += update
+        return update
+
+    def reset(self) -> None:
+        self.text = ""
+        self.last_update = ""
 
 
 def _get_runner() -> InMemoryRunner:
@@ -93,31 +119,41 @@ def _build_run_config() -> RunConfig:
         ),
         input_audio_transcription=types.AudioTranscriptionConfig(),
         output_audio_transcription=types.AudioTranscriptionConfig(),
+        realtime_input_config=types.RealtimeInputConfig(
+            automatic_activity_detection=types.AutomaticActivityDetection(
+                start_of_speech_sensitivity=(
+                    types.StartSensitivity.START_SENSITIVITY_LOW
+                ),
+                end_of_speech_sensitivity=(
+                    types.EndSensitivity.END_SENSITIVITY_LOW
+                ),
+                prefix_padding_ms=300,
+                silence_duration_ms=1_200,
+            )
+        ),
     )
 
 
 @router.websocket("/ws/voice")
 async def voice_call(websocket: WebSocket) -> None:
-    """Run the rep-only backward-compatible voice endpoint."""
-
-    user = await _authenticate_websocket(websocket, allowed_roles={UserRole.REP})
-    if user is not None:
-        await _run_conversation(websocket, user, allow_voice=True)
-
-
-@router.websocket("/ws/conversation")
-async def conversation(websocket: WebSocket) -> None:
-    """Run authenticated customer chat or a rep chat/voice conversation."""
+    """Run the backward-compatible customer or rep voice endpoint."""
 
     user = await _authenticate_websocket(
         websocket, allowed_roles={UserRole.CUSTOMER, UserRole.REP}
     )
     if user is not None:
-        await _run_conversation(
-            websocket,
-            user,
-            allow_voice=user.role is UserRole.REP,
-        )
+        await _run_conversation(websocket, user)
+
+
+@router.websocket("/ws/conversation")
+async def conversation(websocket: WebSocket) -> None:
+    """Run an authenticated customer or rep chat/voice conversation."""
+
+    user = await _authenticate_websocket(
+        websocket, allowed_roles={UserRole.CUSTOMER, UserRole.REP}
+    )
+    if user is not None:
+        await _run_conversation(websocket, user)
 
 
 async def _authenticate_websocket(
@@ -131,7 +167,9 @@ async def _authenticate_websocket(
         return None
 
     token = websocket.cookies.get(settings.cookie_name)
-    user = websocket.app.state.auth_store.resolve_session(token)
+    user = settings.bypass_user() or websocket.app.state.auth_store.resolve_session(
+        token
+    )
     if user is None:
         logger.info("Denied unauthenticated WebSocket path=%s", websocket.url.path)
         await _close_safely(websocket, code=4401)
@@ -148,11 +186,11 @@ async def _authenticate_websocket(
     return user
 
 
-async def _run_conversation(
-    websocket: WebSocket, user: AuthUser, *, allow_voice: bool
-) -> None:
+async def _run_conversation(websocket: WebSocket, user: AuthUser) -> None:
     """Run one authenticated conversation with role-appropriate modes."""
 
+    voice_allowed = user.has(Capability.VOICE)
+    agent_audio_enabled = user.role is UserRole.CUSTOMER
     await websocket.accept()
     try:
         runner = _get_runner()
@@ -163,6 +201,8 @@ async def _run_conversation(
             "conversation_mode": "chat",
             "auth_user_id": str(user.id),
             "auth_role": user.role.value,
+            "voice_allowed": voice_allowed,
+            "agent_audio_enabled": agent_audio_enabled,
             # The transport emits SESSION_STARTED as soon as the call connects.
             # The context tool uses this flag to avoid publishing a duplicate.
             "_session_started_emitted": True,
@@ -199,6 +239,7 @@ async def _run_conversation(
             payload={
                 "channel": "conversation",
                 "initial_mode": "chat",
+                "agent_audio_enabled": agent_audio_enabled,
                 "synthetic": True,
             },
         )
@@ -210,6 +251,7 @@ async def _run_conversation(
             VoiceSessionStarted(
                 session_id=session.id,
                 summary_url=summary_url,
+                agent_audio_enabled=agent_audio_enabled,
             ),
         )
     except (RuntimeError, WebSocketDisconnect):
@@ -221,7 +263,10 @@ async def _run_conversation(
         return
 
     live_queue = LiveRequestQueue()
-    mode_state = ConversationModeState(voice_allowed=allow_voice)
+    mode_state = ConversationModeState(
+        voice_allowed=voice_allowed,
+        agent_audio_enabled=agent_audio_enabled,
+    )
     live_failure: BaseException | None = None
     try:
         async with asyncio.TaskGroup() as tasks:
@@ -351,8 +396,10 @@ async def _pump_agent_events(
     mode_state: ConversationModeState,
     user_id: str,
 ) -> None:
-    """Stream text in chat mode and add audio only after voice is selected."""
+    """Always stream transcripts and add role-appropriate agent audio."""
 
+    user_transcript = TranscriptStreamState()
+    agent_transcript = TranscriptStreamState()
     async for event in runner.run_live(
         user_id=user_id,
         session_id=session_id,
@@ -363,22 +410,29 @@ async def _pump_agent_events(
         for part in (content.parts if content and content.parts else []):
             if (
                 mode_state.mode == "voice"
+                and mode_state.agent_audio_enabled
                 and part.inline_data
                 and part.inline_data.data
             ):
                 await websocket.send_bytes(part.inline_data.data)
-        if event.input_transcription and event.input_transcription.text:
+        input_text = (
+            event.input_transcription.text if event.input_transcription else ""
+        )
+        if input_delta := user_transcript.consume(input_text):
             await _send_message(
                 websocket,
                 VoiceTranscript(
-                    type="user_transcript", text=event.input_transcription.text
+                    type="user_transcript", text=input_delta
                 ),
             )
-        if event.output_transcription and event.output_transcription.text:
+        output_text = (
+            event.output_transcription.text if event.output_transcription else ""
+        )
+        if output_delta := agent_transcript.consume(output_text):
             await _send_message(
                 websocket,
                 VoiceTranscript(
-                    type="agent_transcript", text=event.output_transcription.text
+                    type="agent_transcript", text=output_delta
                 ),
             )
         if event.interrupted:
@@ -391,6 +445,8 @@ async def _pump_agent_events(
                     summary_url=SESSION_SUMMARY_PATH.format(session_id=session_id),
                 ),
             )
+            user_transcript.reset()
+            agent_transcript.reset()
     await _close_safely(websocket)
 
 

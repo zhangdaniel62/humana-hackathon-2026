@@ -22,7 +22,7 @@ class Capability(StrEnum):
 
 ROLE_CAPABILITIES: dict[UserRole, tuple[Capability, ...]] = {
     UserRole.MANAGER: (Capability.MANAGER_DASHBOARD,),
-    UserRole.CUSTOMER: (Capability.CHAT,),
+    UserRole.CUSTOMER: (Capability.CHAT, Capability.VOICE),
     UserRole.REP: (Capability.REP_QUEUE, Capability.CHAT, Capability.VOICE),
 }
 

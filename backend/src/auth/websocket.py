@@ -39,7 +39,7 @@ class WebSocketRouteGuardMiddleware:
         cookies.load(headers.get("cookie", ""))
         morsel = cookies.get(settings.cookie_name)
         token = morsel.value if morsel is not None else None
-        user = self.state.auth_store.resolve_session(token)
+        user = settings.bypass_user() or self.state.auth_store.resolve_session(token)
         if user is None:
             logger.info("Denied unauthenticated raw WebSocket path=%s", scope.get("path"))
             await send({"type": "websocket.close", "code": 4401})
