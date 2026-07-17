@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MessageSquare, Mic } from 'lucide-react'
 import { PageHeader } from '@/components/PageHeader'
@@ -24,6 +24,8 @@ import {
   statusLabel,
   type RepresentativeInteraction,
 } from '@/lib/representativeDemo'
+import { claimSupportRoom, fetchSupportQueue } from '@/lib/supportApi'
+import type { SupportRoom } from '@/lib/supportProtocol'
 
 function Channel({
   interaction,
@@ -254,6 +256,47 @@ export function QueuePage() {
   const [tab, setTab] = useState<'waiting' | 'completed'>('waiting')
   const [waitingSelection, setWaitingSelection] = useState<string | null>(waiting[0]?.id ?? null)
   const [completedSelection, setCompletedSelection] = useState<string | null>(completed[0]?.id ?? null)
+  const [liveRooms, setLiveRooms] = useState<SupportRoom[]>([])
+  const [liveQueueError, setLiveQueueError] = useState<string | null>(null)
+  const [claimingRoomId, setClaimingRoomId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const refresh = () => {
+      void fetchSupportQueue(controller.signal)
+        .then((rooms) => {
+          setLiveRooms(rooms)
+          setLiveQueueError(null)
+        })
+        .catch((error: unknown) => {
+          if (!controller.signal.aborted) {
+            setLiveQueueError(error instanceof Error ? error.message : 'Live requests are unavailable.')
+          }
+        })
+    }
+    refresh()
+    const interval = window.setInterval(refresh, 2_000)
+    return () => {
+      controller.abort()
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  const claimLiveRoom = async (roomId: string) => {
+    setClaimingRoomId(roomId)
+    setLiveQueueError(null)
+    try {
+      await claimSupportRoom(roomId)
+      navigate(`/workspace?room=${encodeURIComponent(roomId)}`)
+    } catch (error) {
+      setLiveQueueError(
+        error instanceof Error ? error.message : 'Another representative claimed this request.',
+      )
+      setLiveRooms((rooms) => rooms.filter((room) => room.id !== roomId))
+    } finally {
+      setClaimingRoomId(null)
+    }
+  }
 
   const effectiveWaitingSelection = waiting.some((item) => item.id === waitingSelection)
     ? waitingSelection
@@ -280,6 +323,54 @@ export function QueuePage() {
         actions={<Badge variant="neutral">Synthetic demo data</Badge>}
       />
       <div className="flex flex-1 flex-col p-6">
+        <Panel bordered className="mb-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-small font-medium text-text-primary">Live customer requests</h2>
+                <Badge variant={liveRooms.length > 0 ? 'info' : 'neutral'}>{liveRooms.length}</Badge>
+              </div>
+              <p className="mt-1 text-mini text-text-tertiary">
+                Real customer-to-representative text and voice rooms.
+              </p>
+            </div>
+            {liveRooms[0] && (
+              <Button
+                variant="primary"
+                isDisabled={claimingRoomId !== null}
+                onPress={() => void claimLiveRoom(liveRooms[0].id)}
+              >
+                {claimingRoomId === liveRooms[0].id ? 'Claiming…' : 'Claim next live request'}
+              </Button>
+            )}
+          </div>
+          {liveQueueError && (
+            <p role="alert" className="mt-3 text-mini text-danger">{liveQueueError}</p>
+          )}
+          {liveRooms.length > 0 ? (
+            <div className="mt-4 divide-y divide-border-tertiary border-y border-border-tertiary">
+              {liveRooms.map((room, index) => (
+                <div key={room.id} className="flex items-center gap-4 py-3 text-small">
+                  <span className="text-mini tabular-nums text-text-quaternary">{index + 1}</span>
+                  <span className="font-medium text-text-primary">Customer support request</span>
+                  <span className="text-text-tertiary">
+                    Waiting since {new Date(room.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                  <Button
+                    className="ml-auto"
+                    size="sm"
+                    isDisabled={claimingRoomId !== null}
+                    onPress={() => void claimLiveRoom(room.id)}
+                  >
+                    Claim
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-small text-text-tertiary">No live customer is waiting.</p>
+          )}
+        </Panel>
         <Tabs
           selectedKey={tab}
           onSelectionChange={(key) => setTab(key === 'completed' ? 'completed' : 'waiting')}

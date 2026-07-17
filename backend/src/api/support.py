@@ -33,12 +33,13 @@ _Representative = Annotated[AuthUser, Depends(require_role(UserRole.REP))]
 
 @router.post("/api/support/rooms", response_model=SupportRoom)
 def create_support_room(
-    payload: CreateSupportRoomRequest,
     request: Request,
     customer: _Customer,
+    payload: CreateSupportRoomRequest | None = None,
 ) -> SupportRoom:
-    if payload.source_session_id is not None and (
-        session_summary_store.owner_user_id(payload.source_session_id)
+    source_session_id = payload.source_session_id if payload is not None else None
+    if source_session_id is not None and (
+        session_summary_store.owner_user_id(source_session_id)
         != str(customer.id)
     ):
         raise HTTPException(
@@ -46,7 +47,7 @@ def create_support_room(
             detail="Source session does not belong to the authenticated customer",
         )
     return request.app.state.support_store.create_or_get_room(
-        customer, source_session_id=payload.source_session_id
+        customer, source_session_id=source_session_id
     )
 
 
@@ -56,7 +57,9 @@ def current_support_room(request: Request, customer: _Customer) -> SupportRoom |
 
 
 @router.get("/api/support/queue", response_model=list[SupportRoom])
-def support_queue(request: Request, representative: _Representative) -> list[SupportRoom]:
+def support_queue(
+    request: Request, representative: _Representative
+) -> list[SupportRoom]:
     return request.app.state.support_store.list_waiting_rooms()
 
 
@@ -173,6 +176,13 @@ async def _receive_support_messages(
         if room is None or room.status is SupportRoomStatus.COMPLETED:
             await _send_error(
                 connection, "room_completed", "This support room is completed"
+            )
+            continue
+        if room.status is not SupportRoomStatus.ACTIVE:
+            await _send_error(
+                connection,
+                "room_not_active",
+                "Wait for a representative to claim this support room",
             )
             continue
         if isinstance(parsed, SupportVoiceInput):

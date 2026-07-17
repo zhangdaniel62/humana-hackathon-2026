@@ -24,6 +24,7 @@ from src.agents import SentinelAgent
 from src.api.auth import router as auth_router
 from src.api.operations import router as operations_router
 from src.api.prevention import router as prevention_router
+from src.api.support import router as support_router
 from src.api.voice import router as voice_router
 from src.auth import AuthSettings, AuthStore, UserRole
 from src.auth.dependencies import require_role
@@ -35,6 +36,7 @@ from src.delegation import DelegationTraceStore
 from src.models import MetricsBaseline
 from src.operations import OperationsStore
 from src.prevention import PreventionScanner, PreventionStore
+from src.support import SupportRegistry, SupportStore
 
 BACKEND_DIR = Path(__file__).resolve().parent
 logger = logging.getLogger(__name__)
@@ -77,6 +79,8 @@ app.state.prevention_scanner = PreventionScanner(
 app.state.delegation_trace_store = DelegationTraceStore(
     auth_settings.database_path
 )
+app.state.support_store = SupportStore(auth_settings.database_path)
+app.state.support_registry = SupportRegistry()
 
 
 _adk_lifespan = app.router.lifespan_context
@@ -110,6 +114,11 @@ async def _claim_assist_lifespan(application):
         application.state.auth_store.database_path
     )
     application.state.event_store.initialize()
+    application.state.support_store = SupportStore(
+        application.state.auth_store.database_path
+    )
+    application.state.support_store.initialize()
+    application.state.support_registry = SupportRegistry()
     event_log.attach_store(application.state.event_store, replay=True)
     try:
         application.state.prevention_scanner.scan(
@@ -136,6 +145,7 @@ app.middleware("http")(authentication_middleware)
 app.include_router(auth_router)
 app.include_router(operations_router)
 app.include_router(prevention_router)
+app.include_router(support_router)
 app.include_router(voice_router)
 
 

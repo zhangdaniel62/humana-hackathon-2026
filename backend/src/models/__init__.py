@@ -56,6 +56,15 @@ from .sentinel import (
     SentinelSnapshot,
 )
 from .session import MemberSessionContext
+from .support import (
+    CreateSupportRoomRequest,
+    SupportMessage,
+    SupportParticipant,
+    SupportRoom,
+    SupportRoomStatus,
+    SupportTextInput,
+    SupportVoiceInput,
+)
 from .voice import (
     VoiceAudioFormat,
     VoiceClientMessage,
@@ -88,6 +97,7 @@ __all__ = [
     "ClaimStoryResultStatus",
     "ClaimTimelineEvent",
     "ClaimTimelineEventType",
+    "CreateSupportRoomRequest",
     "DataCompleteness",
     "DenialDetails",
     "DelegationTrace",
@@ -116,6 +126,12 @@ __all__ = [
     "SentinelAlert",
     "SentinelSnapshot",
     "SessionSummary",
+    "SupportMessage",
+    "SupportParticipant",
+    "SupportRoom",
+    "SupportRoomStatus",
+    "SupportTextInput",
+    "SupportVoiceInput",
     "VoiceAudioFormat",
     "VoiceClientMessage",
     "VoiceError",

@@ -15,6 +15,12 @@ logger = logging.getLogger(__name__)
 _CONVERSATION_PATHS = frozenset({"/ws/conversation", "/ws/voice"})
 
 
+def _application_owned_websocket(path: str | None) -> bool:
+    return path in _CONVERSATION_PATHS or bool(
+        path and path.startswith("/ws/support/")
+    )
+
+
 class WebSocketRouteGuardMiddleware:
     """Reserve raw ADK and unknown WebSockets for authenticated managers."""
 
@@ -23,7 +29,9 @@ class WebSocketRouteGuardMiddleware:
         self.state = state
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "websocket" or scope.get("path") in _CONVERSATION_PATHS:
+        if scope["type"] != "websocket" or _application_owned_websocket(
+            scope.get("path")
+        ):
             await self.app(scope, receive, send)
             return
 

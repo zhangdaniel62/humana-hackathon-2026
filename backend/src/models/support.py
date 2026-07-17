@@ -67,7 +67,7 @@ class SupportTextInput(BaseModel):
 
     type: str
     client_message_id: str = Field(min_length=1, max_length=128)
-    text: str = Field(min_length=1, max_length=8_000)
+    text: str = Field(min_length=1, max_length=4_000)
 
     @field_validator("type")
     @classmethod

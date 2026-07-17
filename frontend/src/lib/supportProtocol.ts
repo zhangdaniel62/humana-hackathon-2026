@@ -129,7 +129,10 @@ export function parseSupportRoom(value: unknown): SupportRoom | null {
   }
   const customer = parseUser(value.customer)
   const assignedRep = value.assigned_rep === null ? null : parseUser(value.assigned_rep)
-  if (customer?.role !== 'customer' || (assignedRep !== null && assignedRep?.role !== 'rep')) {
+  if (
+    customer?.role !== 'customer' ||
+    (value.assigned_rep !== null && assignedRep?.role !== 'rep')
+  ) {
     return null
   }
   return {
@@ -256,14 +259,28 @@ export function supportRoomReducer(
       return { ...state, connection: 'connected', error: null }
     case 'socket_closed':
       if (action.code === 4401) {
-        return { ...state, connection: 'unauthorized', error: 'Please sign in again.' }
+        return {
+          ...state,
+          connection: 'unauthorized',
+          presence: EMPTY_PRESENCE,
+          voice: EMPTY_VOICE,
+          error: 'Please sign in again.',
+        }
       }
       if (action.code === 4403) {
-        return { ...state, connection: 'forbidden', error: 'You cannot join this support room.' }
+        return {
+          ...state,
+          connection: 'forbidden',
+          presence: EMPTY_PRESENCE,
+          voice: EMPTY_VOICE,
+          error: 'You cannot join this support room.',
+        }
       }
       return {
         ...state,
         connection: action.code === 1000 ? 'disconnected' : 'error',
+        presence: EMPTY_PRESENCE,
+        voice: EMPTY_VOICE,
         error:
           action.code === 1000
             ? state.error
@@ -289,7 +306,14 @@ export function supportRoomReducer(
         }
       }
       if (message.type === 'presence') {
-        return { ...state, presence: message.presence, voice: message.voice }
+        // A waiting customer socket is already open when a representative claims
+        // the room. The representative can only become present after that claim,
+        // so promote the local snapshot without requiring a reconnect.
+        const room =
+          state.room?.status === 'waiting' && message.presence.rep
+            ? { ...state.room, status: 'active' as const }
+            : state.room
+        return { ...state, room, presence: message.presence, voice: message.voice }
       }
       if (message.type === 'text') {
         return { ...state, messages: reconcileMessage(state.messages, message.message) }

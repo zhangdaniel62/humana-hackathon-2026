@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Dialog,
   DialogTrigger,
@@ -34,6 +34,8 @@ import {
   type RepresentativeFinding,
   type RepresentativeInteraction,
 } from '@/lib/representativeDemo'
+import { completeSupportRoom } from '@/lib/supportApi'
+import { useSupportRoom } from '@/lib/useSupportRoom'
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -343,9 +345,126 @@ function PropertiesRail({ interaction }: { interaction: RepresentativeInteractio
   )
 }
 
+function LiveSupportWorkspace({ roomId }: { roomId: string }) {
+  const navigate = useNavigate()
+  const support = useSupportRoom(roomId)
+  const [draft, setDraft] = useState('')
+  const [completing, setCompleting] = useState(false)
+  const [completionError, setCompletionError] = useState<string | null>(null)
+  const transcript = support.messages.map((message) => ({
+    id: message.id,
+    speaker: message.sender.role === 'rep' ? ('representative' as const) : ('member' as const),
+    speakerLabel: message.sender.role === 'rep' ? 'You' : 'Customer',
+    text: message.text,
+    timestamp: new Date(message.createdAt).toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+    }),
+  }))
+  const connected = support.status === 'active' && Boolean(support.peer?.present)
+
+  const send = () => {
+    if (support.sendText(draft)) setDraft('')
+  }
+
+  const complete = async () => {
+    setCompleting(true)
+    setCompletionError(null)
+    try {
+      await completeSupportRoom(roomId)
+      navigate('/queue')
+    } catch (error) {
+      setCompletionError(error instanceof Error ? error.message : 'The room could not be completed.')
+    } finally {
+      setCompleting(false)
+    }
+  }
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <PageHeader
+        title="Live Customer Support"
+        description="A private, authenticated customer-to-representative text and voice room."
+        actions={
+          <Badge variant={connected ? 'success' : support.status === 'active' ? 'warning' : 'neutral'}>
+            {connected ? 'Customer connected' : support.status === 'active' ? 'Waiting for customer' : 'Connecting'}
+          </Badge>
+        }
+      />
+      <main className="mx-auto flex w-full max-w-[920px] flex-1 flex-col p-6">
+        <Panel dense className="mb-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            {support.microphoneState === 'listening' ? (
+              <Mic size={16} strokeWidth={1.5} aria-hidden="true" className="text-success" />
+            ) : (
+              <MicOff size={16} strokeWidth={1.5} aria-hidden="true" className="text-text-tertiary" />
+            )}
+            <div>
+              <p className="text-small font-medium text-text-primary">
+                {support.microphoneState === 'listening'
+                  ? 'Your microphone is live'
+                  : support.microphoneState === 'starting'
+                    ? 'Starting microphone…'
+                    : 'Microphone muted'}
+              </p>
+              <p className="text-mini text-text-tertiary">
+                {support.peer?.voiceEnabled
+                  ? 'Customer audio is live.'
+                  : 'Text remains available while either microphone is muted.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={support.microphoneState === 'listening' ? 'secondary' : 'primary'}
+              isDisabled={!connected || support.microphoneState === 'starting'}
+              onPress={() => void support.toggleMicrophone()}
+            >
+              {support.microphoneState === 'listening' ? 'Mute' : 'Start microphone'}
+            </Button>
+            <Button variant="secondary" isDisabled={completing} onPress={() => void complete()}>
+              {completing ? 'Completing…' : 'Complete support room'}
+            </Button>
+          </div>
+        </Panel>
+
+        {transcript.length > 0 ? (
+          <ConversationTranscript messages={transcript} className="flex-1" />
+        ) : (
+          <div className="flex min-h-56 flex-1 items-center justify-center text-center">
+            <p className="text-regular text-text-tertiary">
+              {connected
+                ? 'The customer is connected. Send a message or start the microphone.'
+                : 'Waiting for the customer to reconnect…'}
+            </p>
+          </div>
+        )}
+
+        {(support.error || completionError) && (
+          <p role="alert" className="mb-3 text-small text-danger">
+            {support.error ?? completionError}
+          </p>
+        )}
+        <Composer
+          value={draft}
+          onChange={setDraft}
+          onSend={send}
+          ariaLabel="Message customer"
+          placeholder={connected ? 'Message the customer…' : 'Waiting for customer…'}
+          isDisabled={!connected}
+        />
+      </main>
+    </div>
+  )
+}
+
 export function WorkspacePage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { activeInteractions, selectedInteraction, setSection } = useSessions()
+  const liveRoomId = searchParams.get('room')
+
+  if (liveRoomId) return <LiveSupportWorkspace roomId={liveRoomId} />
 
   return (
     <div className="flex min-h-full flex-col">

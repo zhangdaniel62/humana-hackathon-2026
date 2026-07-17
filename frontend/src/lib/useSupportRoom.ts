@@ -59,7 +59,14 @@ export function useSupportRoom(roomId: string | null | undefined) {
 
   const startMicrophone = useCallback(async (): Promise<boolean> => {
     const socket = socketRef.current
-    if (socket?.readyState !== WebSocket.OPEN || state.room?.status !== 'active') {
+    const peerPresent =
+      ownRole === 'customer' ? state.presence.rep : ownRole === 'rep' && state.presence.customer
+    if (
+      socket?.readyState !== WebSocket.OPEN ||
+      !state.room ||
+      state.room?.status === 'completed' ||
+      !peerPresent
+    ) {
       dispatch({ type: 'client_error', message: 'Wait for a representative to join before using voice.' })
       return false
     }
@@ -91,7 +98,7 @@ export function useSupportRoom(roomId: string | null | undefined) {
       })
       return false
     }
-  }, [sendAudio, state.room?.status])
+  }, [ownRole, sendAudio, state.presence, state.room])
 
   useEffect(() => {
     if (!roomId) {
@@ -102,6 +109,7 @@ export function useSupportRoom(roomId: string | null | undefined) {
     const socket = new WebSocket(getSupportRoomWebSocketUrl(roomId))
     socket.binaryType = 'arraybuffer'
     socketRef.current = socket
+    dispatch({ type: 'room_cleared' })
     dispatch({ type: 'socket_connecting' })
 
     socket.onopen = () => dispatch({ type: 'socket_opened' })
@@ -109,7 +117,16 @@ export function useSupportRoom(roomId: string | null | undefined) {
       if (!mounted) return
       if (typeof event.data === 'string') {
         const message = parseSupportServerMessage(event.data)
-        if (message) dispatch({ type: 'server_message', message })
+        if (message) {
+          if (message.type === 'presence') {
+            const peerPresent =
+              ownRole === 'customer'
+                ? message.presence.rep
+                : ownRole === 'rep' && message.presence.customer
+            if (!peerPresent && activeRef.current) disableMicrophone()
+          }
+          dispatch({ type: 'server_message', message })
+        }
         else dispatch({ type: 'client_error', message: 'The support server sent an invalid message.' })
         return
       }
@@ -152,16 +169,20 @@ export function useSupportRoom(roomId: string | null | undefined) {
       if (socketRef.current === socket) socketRef.current = null
       stopMicrophone(true)
     }
-  }, [connectionAttempt, roomId, stopMicrophone])
+  }, [connectionAttempt, disableMicrophone, ownRole, roomId, stopMicrophone])
 
   const sendText = useCallback(
     (text: string): boolean => {
       const normalized = text.trim().slice(0, 4000)
       if (!normalized) return false
       const socket = socketRef.current
+      const peerPresent =
+        ownRole === 'customer' ? state.presence.rep : ownRole === 'rep' && state.presence.customer
       if (
         socket?.readyState !== WebSocket.OPEN ||
-        state.room?.status !== 'active' ||
+        !state.room ||
+        state.room?.status === 'completed' ||
+        !peerPresent ||
         !user ||
         (user.role !== 'customer' && user.role !== 'rep')
       ) {
@@ -184,7 +205,7 @@ export function useSupportRoom(roomId: string | null | undefined) {
       dispatch({ type: 'local_text_sent', message: optimistic })
       return true
     },
-    [state.room, user],
+    [ownRole, state.presence, state.room, user],
   )
 
   const toggleMicrophone = useCallback(async (): Promise<boolean> => {
