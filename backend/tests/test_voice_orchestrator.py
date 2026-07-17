@@ -107,7 +107,9 @@ class VoiceOrchestratorTests(unittest.TestCase):
             session=SimpleNamespace(id="session-1"),
         )
 
-        with self.assertLogs("src.agents.orchestrator", level="INFO") as captured:
+        with self.assertLogs(
+            "uvicorn.error.claim_assist.routing", level="INFO"
+        ) as captured:
             result = log_agent_route(
                 SimpleNamespace(name="lookup_claim_story"),
                 {"claim_id": "CLM-SENSITIVE"},
@@ -116,7 +118,7 @@ class VoiceOrchestratorTests(unittest.TestCase):
 
         self.assertIsNone(result)
         self.assertEqual(
-            "INFO:src.agents.orchestrator:Agent route "
+            "INFO:uvicorn.error.claim_assist.routing:Agent route "
             "agent=claim_story_agent tool=lookup_claim_story "
             "invocation_id=invocation-1 session_id=session-1",
             captured.output[0],

@@ -29,7 +29,10 @@ from .claim_story import create_claim_story_agent
 from .delegation import TracedClaimStoryAgentTool
 from .session_context import build_establish_member_context_tool
 
-logger = logging.getLogger(__name__)
+# Uvicorn's error logger is the server's configured console channel. A child
+# logger keeps these messages visible at INFO without adding an extra handler
+# that could duplicate them in tests or other hosts.
+logger = logging.getLogger("uvicorn.error.claim_assist.routing")
 
 ROUTED_AGENT_BY_TOOL = {
     "establish_member_context": "roi_gatekeeper",
