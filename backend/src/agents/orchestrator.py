@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+from typing import Any
+
 from google.adk.agents import LlmAgent
 from google.adk.models.google_llm import Gemini
-from google.adk.tools import FunctionTool
+from google.adk.tools import BaseTool, FunctionTool, ToolContext
 
 from ..clients.claims import ClaimsRepository, create_claims_repository
 from ..delegation.store import InMemoryDelegationTraceStore, TraceSink
@@ -25,6 +28,17 @@ from .claim_story import build_lookup_claim_story_tool
 from .claim_story import create_claim_story_agent
 from .delegation import TracedClaimStoryAgentTool
 from .session_context import build_establish_member_context_tool
+
+logger = logging.getLogger(__name__)
+
+ROUTED_AGENT_BY_TOOL = {
+    "establish_member_context": "roi_gatekeeper",
+    "lookup_claim_story": "claim_story_agent",
+    "screen_claim_readiness": "claim_readiness_agent",
+    "record_corrective_intervention": "claim_readiness_agent",
+    "lookup_coverage": "benefits_agent",
+    "find_provider": "benefits_agent",
+}
 
 VOICE_ORCHESTRATOR_INSTRUCTION = """
 You are the Claim Assist agent for a health-plan member-services prototype.
@@ -79,6 +93,26 @@ Response style:
 """.strip()
 
 _default_trace_store = InMemoryDelegationTraceStore()
+
+
+def log_agent_route(
+    tool: BaseTool,
+    _args: dict[str, Any],
+    tool_context: ToolContext,
+) -> None:
+    """Log metadata for each root-agent routing decision.
+
+    Tool arguments and result payloads are deliberately excluded because they
+    can contain member or claim information.
+    """
+
+    logger.info(
+        "Agent route agent=%s tool=%s invocation_id=%s session_id=%s",
+        ROUTED_AGENT_BY_TOOL.get(tool.name, "unknown_specialist"),
+        tool.name,
+        tool_context.invocation_id,
+        tool_context.session.id,
+    )
 
 
 def create_voice_orchestrator(
@@ -146,6 +180,7 @@ def create_voice_orchestrator(
         model=model,
         instruction=VOICE_ORCHESTRATOR_INSTRUCTION,
         mode="chat",
+        before_tool_callback=log_agent_route,
         tools=[
             build_establish_member_context_tool(resolved_member_records, resolved_events),
             TracedClaimStoryAgentTool(
