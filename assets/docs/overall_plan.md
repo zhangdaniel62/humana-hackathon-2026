@@ -19,7 +19,7 @@ feature. Status reflects the current repository, not the target architecture.
 |---|---|---|---|---|
 | FastAPI and ADK platform | **Implemented through the minimal Feature 16 boundary** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/conversation`, `/ws/voice`, `/demo`, `/operations`, auth APIs, summary and operations APIs, liveness/readiness checks, CI, and container startup are present. | ADK/session durability, managed infrastructure, and distributed deployment remain future work. | Foundation; Features 0, 6, 9–10, 16 |
 | Authentication and role access | **Integrated for the hackathon frontend** | The SQLite/Argon2 backend session contract is connected to the React login, boot-time `/me` hydration, logout, capability-aware routes, and role-specific navigation. Session tokens remain HTTP-only and are never copied into browser storage. | Enterprise identity, MFA, recovery, rate limiting, managed secrets, and durable audit retention remain future work. | Feature 0; Feature 12 UI |
-| First-class Chat and Voice | **Customer frontend and backend integrated** | The authenticated customer page uses one `/ws/conversation` session for Chat and Voice, coalesces transcripts, refreshes structured summaries, gates microphone access behind Voice selection, streams 16 kHz mono PCM16, plays 24 kHz mono PCM16, and clears capture/playback on interruption, Chat switch, and unmount. The backend retains equivalent rep capability. | A credentialed microphone-to-live-model browser call remains an environment check; the representative queue/workspace is still a synthetic UI and does not yet open its own live socket. | Features 0, 6, 8, 12 |
+| First-class Chat and Voice | **Customer frontend and backend integrated** | The authenticated customer page uses one `/ws/conversation` session for Chat and Voice, coalesces transcripts, refreshes structured summaries, gates microphone access behind Voice selection, streams 16 kHz mono PCM16, plays 24 kHz mono PCM16, and clears capture/playback on interruption, Chat switch, and unmount. The credentialed in-app-browser check exercised typed and microphone turns on the same session. The backend retains equivalent rep capability. | The representative queue/workspace is still a synthetic UI and does not yet open its own live socket. | Features 0, 6, 8, 12 |
 | Claim Story | **Implemented and integrated** | Exact BigQuery lookup with synthetic CSV fallback, deterministic timeline and denial guidance, grounding, confidence handling, escalation, shared findings, ROI enforcement, and typed denial/escalation events are verified. | Population-wide analysis and production data operations remain future work. | Features 3–5, 9 |
 | Benefits Q&A | **Implemented and integrated** | Deterministic coverage, prior authorization, cost, provider guidance, CSV/BigQuery clients, ambiguity handling, ROI refusal, shared findings, typed operational events, orchestrator routing, and summary projection are verified. | Production directory freshness and data-source operations remain future work. | Features 4, 6, 9 |
 | ROI controls | **Implemented and integrated** | One shared session context resolves verified, not-required, missing, expired, and unknown ROI; all member-specific tools fail closed, findings project through the summary API, and ROI-gap/session-start events feed Sentinel. | Production identity proofing and authorization submission remain future work. | Features 3, 6, 9 |
@@ -39,10 +39,12 @@ feature. Status reflects the current repository, not the target architecture.
 | Proactive prevention queue | **Synthetic backend implemented** | A bounded CSV/BigQuery repository contract scans Pending/In Review claims with existing reviewed rules. SQLite enforces scan/work-item deduplication, priority ordering, assignment, optimistic versions, and legal states. Manager scan and rep queue APIs enforce role/capability boundaries. | Production batch source, distributed scan locking, queue SLA policy, and real claim-system writeback remain future work. | Feature 15 |
 | Durable runtime boundary | **Minimal single-instance boundary implemented** | SQLite persists work items, idempotency runs, trace metadata, and structured events. Startup replays events exactly once into Sentinel and performs one idempotent scan. Liveness, manager readiness, CI, Docker startup, and restart tests are present. | ADK sessions and session summaries remain in process; there is no multi-worker leader election, distributed queue, or enterprise event bus. | Feature 16 |
 
-Current verified integration checkpoint: **206 backend tests passed, 2 skipped,
+Current verified integration checkpoint: **207 backend tests passed, 2 skipped,
 and 216 subtests passed; 41 frontend tests, the production build, and lint all
-passed**. The remaining runtime gates are the requested in-app-browser exercise
-and a credentialed live-model/microphone check.
+passed**. The Codex in-app browser verified manager login, live dashboard data,
+weekly/monthly filtering, and logout plus customer login, live typed and
+microphone turns, structured summary refresh, Chat/Voice switching on one
+session, cleanup back to Chat, and logout with a clean browser console.
 
 ## 1. Target outcome
 
@@ -173,8 +175,8 @@ flowchart TD
     Customer["Customer"]
     Rep["Representative"]
     Manager["Manager"]
-    CustomerUI["Future customer experience<br/>first-class Chat + Voice, own results"]
-    RepUI["Future rep experience<br/>Help queue, first-class Chat + Voice"]
+    CustomerUI["Customer React experience<br/>first-class Chat + Voice, own results"]
+    RepUI["Synthetic rep experience<br/>future live queue + Chat/Voice"]
     ManagerUI["Manager operations dashboard"]
     Auth["Auth API + RBAC<br/>opaque session cookie"]
     AuthDB["Shared local SQLite<br/>users, sessions, and synthetic operations"]
