@@ -66,6 +66,31 @@ first) / `pnpm lint`.
 - Sessions (`src/app/sessions*.ts[x]`): in-memory list of concurrent member
   interactions; `openSession` is meant to be called on queue pickup.
 
+## Operations dashboard
+
+- The dashboard is five route-backed views sharing one filter context: `/` is
+  the overview; `/metrics/average-handle-time`,
+  `/metrics/first-call-resolution`, `/metrics/repeat-contacts`, and
+  `/metrics/preventable-denials` are focused views. `DashboardFiltersProvider`
+  sits above these routes, so date range and Weekly/Monthly selection survive
+  client-side tab navigation (a full page reload intentionally resets them).
+- `src/lib/operationsDashboard.ts` owns the typed response/query contract and
+  is the single data-source swap point. It currently calls
+  `buildMockDashboardResponse`; replace only `fetchOperationsDashboard` when
+  the real `GET /api/operations/dashboard` endpoint is ready.
+- `src/lib/mockOperationsDashboard.ts` is a deterministic client-side stand-in:
+  it filters weekly source rows, re-buckets by month, and derives aggregates
+  from integer counts. UI copy must continue to label these values and the
+  comparison baseline as synthetic.
+- `DashboardPageFrame` owns filters, loading skeleton, empty-range handling,
+  and refetch dimming. The overview/focused tabs should stay presentation-only
+  consumers of `OperationsDashboardResponse`.
+- Charts are hand-written responsive SVG components. `ChartCard` requires an
+  accessible table for every chart and exposes the chart/table toggle; keep
+  legends, hover tooltips, null handling, and the explicit "Not measured"
+  caveats when changing metrics. Do not back-calculate counts from rounded
+  rates or call recorded interventions a true prevented-denial outcome.
+
 ## Layout decisions (the Linear "content card" shell)
 
 - `AppShell`: whole window chrome is one surface (`bg-bg-secondary`) —
@@ -128,21 +153,34 @@ notice = info; closed/n-a = neutral.
 
 ## Verifying changes
 
-Build+lint, then drive the real app: `pnpm dev`, then Playwright
-(`playwright-core` npm package + `channel: 'chrome'`, headless — no browser
-download needed on this machine) to sign in (`daniel`/anything), navigate,
-and screenshot. Look at the screenshots. Prior scripts live in the session
-scratchpad (`shot*.mjs`) as a pattern to copy.
+Run `pnpm build` and `pnpm lint`, then drive the real app with Playwright after
+starting `pnpm dev --host 127.0.0.1`. Sign in with `daniel`/anything. For
+dashboard changes, exercise all five routes through the sidebar, change the
+Weekly/Monthly bucket and confirm it persists across client-side navigation,
+toggle at least one chart to its accessible table, inspect browser console
+warnings/errors, and screenshot the overview plus affected focused views.
+Actually inspect every screenshot for clipping, overlap, active-nav state, and
+readability; a DOM-only pass is insufficient.
+
+Last verified 2026-07-17 at `83141abd`: build and lint passed; all five
+dashboard views, shared bucket persistence, the AHT table fallback, and a clean
+browser console passed Playwright inspection at the normal desktop viewport.
+Vite currently emits only its advisory warning that the main minified JS chunk
+is about 538 kB; plan route-level code splitting before this grows materially.
 
 ## Known state / open items
 
-- All pages are shells: header bar + empty `p-6` content region. No queue
-  table, no metric tiles, no workspace conversation UI, no member chat yet.
+- The five-view operations dashboard is implemented against deterministic
+  synthetic mock data. Queue and workspace remain shells; there is still no
+  queue table, workspace conversation UI, or member chat.
 - `/member` is a placeholder ("Talk to Claim Assist") with a staff sign-in
   link; the member chat surface goes there.
 - Nothing populates sessions yet except the strip's `+` button.
-- Backend integration not started (`apiFetch` unused; no data contracts).
+- Live backend integration is not started. `apiFetch` remains unused by the
+  dashboard; its typed contract and mock swap point are ready for the real
+  endpoint.
 - Berkeley Mono (design mono face) isn't loaded — falls back through the
   `--font-mono` stack.
-- Much of `src/` is untracked — **commit early**; an accidental revert
-  already destroyed the original `src/lib/*` implementations once.
+- The frontend source is committed through `83141abd`; preserve small,
+  intentional commits because an earlier accidental revert destroyed
+  uncommitted `src/lib/*` implementations.
