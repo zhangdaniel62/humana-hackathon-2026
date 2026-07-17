@@ -4,16 +4,19 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from ..auth.dependencies import CurrentUser, require_role
+from ..auth.models import UserRole
 from ..models import MetricsSnapshot, SentinelAlert, SessionSummary
 from ..services.golden_path import run_golden_path
 from ..services.session_summary import session_summary_store
 
 router = APIRouter(prefix="/api", tags=["operations"])
+manager_only = Depends(require_role(UserRole.MANAGER))
 
 
-@router.get("/events")
+@router.get("/events", dependencies=[manager_only])
 def get_events(
     request: Request,
     limit: int = Query(default=100, ge=1, le=1000),
@@ -22,25 +25,37 @@ def get_events(
     return [event.model_dump(mode="json") for event in reversed(events)]
 
 
-@router.get("/alerts", response_model=list[SentinelAlert])
+@router.get(
+    "/alerts", response_model=list[SentinelAlert], dependencies=[manager_only]
+)
 def get_alerts(request: Request) -> list[SentinelAlert]:
     return request.app.state.sentinel.snapshot().alerts
 
 
-@router.get("/metrics", response_model=MetricsSnapshot)
+@router.get(
+    "/metrics", response_model=MetricsSnapshot, dependencies=[manager_only]
+)
 def get_metrics(request: Request) -> MetricsSnapshot:
     return request.app.state.sentinel.snapshot().metrics
 
 
 @router.get("/sessions/{session_id}/summary", response_model=SessionSummary)
-def get_session_summary(session_id: str) -> SessionSummary:
+def get_session_summary(session_id: str, user: CurrentUser) -> SessionSummary:
     summary = session_summary_store.get(session_id)
     if summary is None:
         raise HTTPException(status_code=404, detail="Session summary not found")
+    if (
+        user.role is UserRole.CUSTOMER
+        and session_summary_store.owner_user_id(session_id) != str(user.id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Insufficient permissions",
+        )
     return summary
 
 
-@router.post("/demo/golden-path")
+@router.post("/demo/golden-path", dependencies=[manager_only])
 async def trigger_golden_path(request: Request) -> dict:
     result = run_golden_path()
     await asyncio.sleep(0)

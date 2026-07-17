@@ -25,6 +25,7 @@ from google.genai import types
 from pydantic import ValidationError
 
 from ..agents.orchestrator import create_voice_orchestrator
+from ..auth.models import AuthUser, UserRole
 from ..events import event_log
 from ..models import (
     AgentEvent,
@@ -48,7 +49,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 VOICE_APP_NAME = "claim_assist_voice"
-VOICE_USER_ID = "demo-caller"
 INPUT_AUDIO_MIME_TYPE = "audio/pcm;rate=16000"
 SESSION_SUMMARY_PATH = "/api/sessions/{session_id}/summary"
 
@@ -61,6 +61,7 @@ class ConversationModeState:
 
     mode: str = "chat"
     audio_warning_sent: bool = False
+    voice_allowed: bool = True
 
 
 def _get_runner() -> InMemoryRunner:
@@ -97,7 +98,60 @@ def _build_run_config() -> RunConfig:
 
 @router.websocket("/ws/voice")
 async def voice_call(websocket: WebSocket) -> None:
-    """Run one chat-first conversation that can opt into live voice."""
+    """Run the rep-only backward-compatible voice endpoint."""
+
+    user = await _authenticate_websocket(websocket, allowed_roles={UserRole.REP})
+    if user is not None:
+        await _run_conversation(websocket, user, allow_voice=True)
+
+
+@router.websocket("/ws/conversation")
+async def conversation(websocket: WebSocket) -> None:
+    """Run authenticated customer chat or a rep chat/voice conversation."""
+
+    user = await _authenticate_websocket(
+        websocket, allowed_roles={UserRole.CUSTOMER, UserRole.REP}
+    )
+    if user is not None:
+        await _run_conversation(
+            websocket,
+            user,
+            allow_voice=user.role is UserRole.REP,
+        )
+
+
+async def _authenticate_websocket(
+    websocket: WebSocket, *, allowed_roles: set[UserRole]
+) -> AuthUser | None:
+    settings = websocket.app.state.auth_settings
+    origin = websocket.headers.get("origin")
+    if origin and origin not in settings.allowed_origins:
+        logger.info("Denied WebSocket from untrusted origin=%s", origin)
+        await _close_safely(websocket, code=4403)
+        return None
+
+    token = websocket.cookies.get(settings.cookie_name)
+    user = websocket.app.state.auth_store.resolve_session(token)
+    if user is None:
+        logger.info("Denied unauthenticated WebSocket path=%s", websocket.url.path)
+        await _close_safely(websocket, code=4401)
+        return None
+    if user.role not in allowed_roles:
+        logger.info(
+            "Denied WebSocket user=%s role=%s path=%s",
+            user.username,
+            user.role.value,
+            websocket.url.path,
+        )
+        await _close_safely(websocket, code=4403)
+        return None
+    return user
+
+
+async def _run_conversation(
+    websocket: WebSocket, user: AuthUser, *, allow_voice: bool
+) -> None:
+    """Run one authenticated conversation with role-appropriate modes."""
 
     await websocket.accept()
     try:
@@ -107,13 +161,15 @@ async def voice_call(websocket: WebSocket) -> None:
             "session_id": session_id,
             "channel": "conversation",
             "conversation_mode": "chat",
+            "auth_user_id": str(user.id),
+            "auth_role": user.role.value,
             # The transport emits SESSION_STARTED as soon as the call connects.
             # The context tool uses this flag to avoid publishing a duplicate.
             "_session_started_emitted": True,
         }
         session = await runner.session_service.create_session(
             app_name=VOICE_APP_NAME,
-            user_id=VOICE_USER_ID,
+            user_id=str(user.id),
             session_id=session_id,
             state=initial_state,
         )
@@ -165,7 +221,7 @@ async def voice_call(websocket: WebSocket) -> None:
         return
 
     live_queue = LiveRequestQueue()
-    mode_state = ConversationModeState()
+    mode_state = ConversationModeState(voice_allowed=allow_voice)
     live_failure: BaseException | None = None
     try:
         async with asyncio.TaskGroup() as tasks:
@@ -179,6 +235,7 @@ async def voice_call(websocket: WebSocket) -> None:
                     session.id,
                     live_queue,
                     mode_state,
+                    str(user.id),
                 )
             )
     except* WebSocketDisconnect:
@@ -210,13 +267,6 @@ async def voice_call(websocket: WebSocket) -> None:
         await _close_safely(websocket, code=1011)
 
 
-@router.websocket("/ws/conversation")
-async def conversation(websocket: WebSocket) -> None:
-    """Preferred chat-first alias for the backward-compatible voice route."""
-
-    await voice_call(websocket)
-
-
 async def _pump_caller_audio(
     websocket: WebSocket,
     live_queue: LiveRequestQueue,
@@ -231,13 +281,21 @@ async def _pump_caller_audio(
         if audio := message.get("bytes"):
             if mode_state.mode != "voice":
                 if not mode_state.audio_warning_sent:
+                    code = (
+                        "voice_mode_required"
+                        if mode_state.voice_allowed
+                        else "voice_forbidden"
+                    )
+                    message_text = (
+                        "Choose voice mode before sending microphone audio."
+                        if mode_state.voice_allowed
+                        else "Voice mode is not available for this account."
+                    )
                     await _send_message(
                         websocket,
                         VoiceError(
-                            code="voice_mode_required",
-                            message=(
-                                "Choose voice mode before sending microphone audio."
-                            ),
+                            code=code,
+                            message=message_text,
                         ),
                     )
                     mode_state.audio_warning_sent = True
@@ -268,6 +326,15 @@ async def _pump_caller_audio(
                     )
                 )
             elif isinstance(payload, VoiceSetModeInput):
+                if payload.mode == "voice" and not mode_state.voice_allowed:
+                    await _send_message(
+                        websocket,
+                        VoiceError(
+                            code="voice_forbidden",
+                            message="Voice mode is not available for this account.",
+                        ),
+                    )
+                    continue
                 mode_state.mode = payload.mode
                 mode_state.audio_warning_sent = False
                 await _send_message(
@@ -282,11 +349,12 @@ async def _pump_agent_events(
     session_id: str,
     live_queue: LiveRequestQueue,
     mode_state: ConversationModeState,
+    user_id: str,
 ) -> None:
     """Stream text in chat mode and add audio only after voice is selected."""
 
     async for event in runner.run_live(
-        user_id=VOICE_USER_ID,
+        user_id=user_id,
         session_id=session_id,
         live_request_queue=live_queue,
         run_config=_build_run_config(),

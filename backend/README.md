@@ -76,3 +76,37 @@ messages; backend exception details are never sent to the browser.
 The golden path uses member `MBR00109`, denied claim `CLM000490`, and In Review
 claim `CLM000493`. Its notification is always a grounded `preview` with
 delivery status `not_sent`; no external message is delivered.
+
+## Local authentication
+
+The backend uses a local SQLite user store with Argon2 password hashes and
+server-side session cookies. Create or refresh the runtime database from the
+tracked schema and development seed:
+
+```shell
+uv run python -m src.auth.bootstrap
+```
+
+The generated `.data/auth.sqlite3` contains mutable login sessions and is not
+tracked. `src/auth/schema.sql` and `src/auth/demo_seed.sql` are tracked, so every
+checkout can reproduce the same development accounts:
+
+| Role | Username | Development-only password |
+|---|---|---|
+| Manager | `manager` | `ManagerDemo2026!` |
+| Customer | `customer` | `CustomerDemo2026!` |
+| Representative | `rep` | `RepDemo2026!` |
+
+These credentials are synthetic and must not be reused for real users. Set
+`AUTH_ENABLE_DEMO_SEED=false` outside local or hackathon environments.
+
+Auth endpoints:
+
+- `POST /api/auth/login` with `{"username":"...","password":"..."}`
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+
+Managers can use the operations dashboard and raw ADK developer APIs. Reps can
+use the current combined chat/call demo. Customers and reps can connect to
+`/ws/conversation`, but only reps may enable voice. The future frontend should
+use the role and `capabilities` returned by the auth API to select its pages.

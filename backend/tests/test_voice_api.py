@@ -13,11 +13,19 @@ from src.api.voice import (
     ConversationModeState,
     _pump_agent_events,
     _pump_caller_audio,
-    voice_call,
+    _run_conversation,
 )
+from src.auth.models import AuthUser, Capability, UserRole
 from src.events import event_log
 from src.models import EventType
 from src.services.session_summary import session_summary_store
+
+REP_USER = AuthUser(
+    id=3,
+    username="rep",
+    role=UserRole.REP,
+    capabilities=(Capability.REP_QUEUE, Capability.CHAT, Capability.VOICE),
+)
 
 
 @pytest.fixture(autouse=True)
@@ -69,15 +77,21 @@ class StubLiveQueue:
 
 
 class StubSessionService:
+    def __init__(self) -> None:
+        self.last_kwargs = None
+
     async def create_session(self, **kwargs):
+        self.last_kwargs = kwargs
         return SimpleNamespace(id=kwargs["session_id"], state=kwargs["state"])
 
 
 class WaitingRunner:
     def __init__(self) -> None:
         self.session_service = StubSessionService()
+        self.run_kwargs = None
 
     async def run_live(self, **kwargs):
+        self.run_kwargs = kwargs
         await asyncio.Event().wait()
         if False:
             yield None
@@ -101,8 +115,9 @@ def test_voice_connection_announces_session_and_records_lifecycle() -> None:
         [{"type": "websocket.disconnect", "code": 1000}]
     )
 
-    with patch("src.api.voice._get_runner", return_value=WaitingRunner()):
-        asyncio.run(voice_call(websocket))
+    runner = WaitingRunner()
+    with patch("src.api.voice._get_runner", return_value=runner):
+        asyncio.run(_run_conversation(websocket, REP_USER, allow_voice=True))
 
     assert websocket.accepted is True
     started = websocket.sent_json[0]
@@ -120,6 +135,10 @@ def test_voice_connection_announces_session_and_records_lifecycle() -> None:
     ]
     assert event_log.events[0].payload["initial_mode"] == "chat"
     assert event_log.events[1].payload["final_mode"] == "chat"
+    assert session_summary_store.owner_user_id(started["session_id"]) == "3"
+    assert runner.session_service.last_kwargs["user_id"] == "3"
+    assert runner.session_service.last_kwargs["state"]["auth_role"] == "rep"
+    assert runner.run_kwargs["user_id"] == "3"
 
 
 def test_invalid_typed_message_is_rejected_without_ending_call() -> None:
@@ -204,6 +223,7 @@ def test_agent_events_include_summary_correlation() -> None:
             "session-123",
             StubLiveQueue(),
             ConversationModeState(mode="voice"),
+            "3",
         )
     )
 
@@ -232,6 +252,7 @@ def test_chat_mode_suppresses_spoken_audio_but_keeps_transcripts() -> None:
             "session-123",
             StubLiveQueue(),
             ConversationModeState(),
+            "3",
         )
     )
 
@@ -250,7 +271,7 @@ def test_session_initialization_failure_is_user_safe() -> None:
     with patch(
         "src.api.voice._get_runner", side_effect=RuntimeError("secret detail")
     ):
-        asyncio.run(voice_call(websocket))
+        asyncio.run(_run_conversation(websocket, REP_USER, allow_voice=True))
 
     assert websocket.sent_json == [
         {

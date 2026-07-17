@@ -79,6 +79,7 @@ class VoiceError(VoiceMessage):
     type: Literal["error"] = "error"
     code: Literal[
         "invalid_message",
+        "voice_forbidden",
         "voice_mode_required",
         "session_initialization_failed",
         "live_model_unavailable",

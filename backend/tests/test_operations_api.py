@@ -3,13 +3,17 @@
 from fastapi.testclient import TestClient
 
 from main import app, sentinel
+from src.auth import UserRole
 from src.models import EventType
 from src.services.session_summary import session_summary_store
 
 
-def test_operational_lifecycle_apis_and_golden_path() -> None:
+def test_operational_lifecycle_apis_and_golden_path(
+    configured_auth_app, login_as
+) -> None:
     assert sentinel._consumer_task is None
-    with TestClient(app) as client:
+    with TestClient(configured_auth_app) as client:
+        login_as(client, UserRole.MANAGER)
         assert sentinel._consumer_task is not None
 
         first = client.post("/api/demo/golden-path")
@@ -54,14 +58,17 @@ def test_operational_lifecycle_apis_and_golden_path() -> None:
     assert sentinel._consumer_task is None
 
 
-def test_session_summary_not_found() -> None:
-    with TestClient(app) as client:
+def test_session_summary_not_found(configured_auth_app, login_as) -> None:
+    with TestClient(configured_auth_app) as client:
+        login_as(client, UserRole.MANAGER)
         response = client.get("/api/sessions/does-not-exist/summary")
 
     assert response.status_code == 404
 
 
-def test_session_summary_reports_incomplete_findings() -> None:
+def test_session_summary_reports_incomplete_findings(
+    configured_auth_app, login_as
+) -> None:
     session_summary_store.capture(
         {
             "session_id": "partial-session",
@@ -69,7 +76,8 @@ def test_session_summary_reports_incomplete_findings() -> None:
             "roi_finding": {"status": "verified"},
         }
     )
-    with TestClient(app) as client:
+    with TestClient(configured_auth_app) as client:
+        login_as(client, UserRole.MANAGER)
         response = client.get("/api/sessions/partial-session/summary")
 
     assert response.status_code == 200

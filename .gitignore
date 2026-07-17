@@ -153,6 +153,9 @@ activemq-data/
 .env
 .envrc
 .venv
+backend/.data/auth.sqlite3
+backend/.data/auth.sqlite3-shm
+backend/.data/auth.sqlite3-wal
 env/
 venv/
 ENV/
