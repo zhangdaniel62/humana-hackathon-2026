@@ -8,6 +8,8 @@ Built for the 2026 Humana hackathon, Claim Assist pairs a React experience with 
 
 ![Manager operations dashboard](assets/images/screenshots/operations-dashboard.png)
 
+![Representative synthetic queue](assets/images/screenshots/rep-queue.png)
+
 ## What it does
 
 Claim Assist has three role-aware experiences:
