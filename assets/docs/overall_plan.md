@@ -6,10 +6,9 @@ understand claims, verify whether information may be disclosed, answer benefit
 questions, identify actionable claim-readiness risks, and surface operational
 signals before every issue requires a human call.
 
-This document is the source of truth for product scope, architecture, feature
-priority, implementation order, demo flow, and future additions. Detailed
-frontend and live-audio design is kept in
-[Frontend and Voice Plan](frontend_voice_plan.md).
+This document is the single source of truth for product scope, architecture,
+channel contracts, feature priority, implementation order, demo flow, and
+future additions.
 
 ## Implementation status at a glance
 
@@ -18,8 +17,8 @@ feature. Status reflects the current repository, not the target architecture.
 
 | Area | Status | Implemented now | Work remaining | Roadmap |
 |---|---|---|---|---|
-| FastAPI and ADK platform | **Implemented through P1** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/voice`, `/demo`, `/operations`, and the read-only summary/operations APIs are mounted; lifecycle and route behavior are verified. | Production authentication, authorization, persistence, and distributed deployment remain future work. | Foundation; Features 6, 9–10 |
-| Live voice and typed fallback | **Implemented baseline** | Continuous browser audio, transcripts, interruption handling, spoken replies, and typed input remain wired to the shared root-agent factory. Credentialed ADK text turns were verified against Vertex AI for ROI, Claim Story, Benefits, provider guidance, ambiguity, and Claim Readiness tool selection. | A real microphone-to-live-model call remains an environment check; structured result cards and React parity are later UI work. | Features 6, 8, 12 |
+| FastAPI and ADK platform | **Implemented through P1** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/conversation`, the `/ws/voice` alias, `/demo`, `/operations`, and the read-only summary/operations APIs are mounted; lifecycle and route behavior are verified. | Production authentication, authorization, persistence, and distributed deployment remain future work. | Foundation; Features 6, 9–10 |
+| Chat and live voice | **Backend implemented** | The conversation protocol exposes Chat and Voice as peer modes in one session, defaults to Chat, and preserves domain context when toggled. Continuous browser audio, interruption handling, spoken replies, validated text/mode input, session correlation, summary-aware turn completion, and typed safe errors are wired to the shared root-agent factory. The existing static demo remains only a minimal voice adapter. | The separate frontend must render the two-option selector. A credentialed microphone-to-live-model call remains an environment check; structured result cards are later UI work. | Features 6, 8, 12 |
 | Claim Story | **Implemented and integrated** | Exact BigQuery lookup with synthetic CSV fallback, deterministic timeline and denial guidance, grounding, confidence handling, escalation, shared findings, ROI enforcement, and typed denial/escalation events are verified. | Population-wide analysis and production data operations remain future work. | Features 3–5, 9 |
 | Benefits Q&A | **Implemented and integrated** | Deterministic coverage, prior authorization, cost, provider guidance, CSV/BigQuery clients, ambiguity handling, ROI refusal, shared findings, typed operational events, orchestrator routing, and summary projection are verified. | Production directory freshness and data-source operations remain future work. | Features 4, 6, 9 |
 | ROI controls | **Implemented and integrated** | One shared session context resolves verified, not-required, missing, expired, and unknown ROI; all member-specific tools fail closed, findings project through the summary API, and ROI-gap/session-start events feed Sentinel. | Production identity proofing and authorization submission remain future work. | Features 3, 6, 9 |
@@ -32,9 +31,9 @@ feature. Status reflects the current repository, not the target architecture.
 | Sentinel runtime | **Implemented and integrated** | One application-scoped event log and Sentinel lifecycle consume live specialist/session events and expose events, alerts, and metrics APIs. | Durable distributed runtime remains future work. | Feature 9 |
 | Operations dashboard | **Implemented** | `/operations` displays the labeled baseline, all planned demo metrics, active alerts, evidence IDs, recommended actions, and empty state. | Advanced filters and push updates remain stretch work. | Feature 10 |
 | Expanded golden path | **Implemented with deterministic fallback** | A fixed-ID API/dashboard trigger assembles ROI, denied Claim Story, Benefits, readiness, notification preview, recorded intervention, events, alerts, and metric update; a rendered screenshot backup is stored in `assets/images/`. | Live microphone/model access remains an environment check. | Feature 11 |
-| React caller and dashboard UI | **Not started / stretch** | The static `/demo` page is the working audio reference. | Build only after the backend critical path is stable; retain `/demo` and Streamlit fallbacks. | Feature 12 |
+| Caller and dashboard frontend | **Separate workstream** | The backend contracts are complete and the static `/demo` page remains only a minimal voice/audio reference. | The separately developed frontend must implement the Chat / Voice selector, structured caller cards, and dashboard without moving domain logic into the browser. | Feature 12 |
 
-Current verified backend checkpoint: **119 tests passed, 3 skipped, and 216
+Current verified backend checkpoint: **125 tests passed, 3 skipped, and 216
 subtests passed**. At user direction, this checkpoint was verified through
 terminal tests, FastAPI/application smoke checks, the historical Sentinel replay,
 and a real-browser golden-path dashboard exercise while the frontend is being
@@ -44,7 +43,8 @@ implemented separately.
 
 The complete hackathon demo should show one grounded workflow:
 
-1. Start a voice or text conversation.
+1. Start in Chat or explicitly choose Voice, then switch modes without losing
+   the session.
 2. Establish caller identity, subject member, and session context.
 3. Apply Release of Information (ROI) controls when the caller represents
    another adult member.
@@ -119,23 +119,24 @@ but it must be labeled accurately:
 
 Claim Assist has two user-facing surfaces:
 
-- **Caller/member-services experience:** voice and text access to claim stories,
-  benefit answers, ROI guidance, readiness results, notification previews, and
-  safe escalation.
+- **Caller/member-services experience:** peer Chat and Voice modes with Chat
+  selected initially, plus claim stories, benefit answers, ROI guidance,
+  readiness results, notification previews, and safe escalation.
 - **Operations/manager experience:** alerts and metrics for denial patterns, ROI
   gaps, repeat contacts, escalations, at-risk claims identified, and corrective
   interventions recorded.
 
 The current static browser-microphone page at `/demo` is the required
-low-dependency fallback. A React `/call` and `/dashboard` application is a
-stretch presentation layer, not a prerequisite for the domain workflow.
+low-dependency audio fallback. The full caller and dashboard frontend is being
+implemented as a separate workstream against the contracts in this document;
+it is not a prerequisite for the backend domain workflow.
 
 ## 5. Architecture
 
 ```mermaid
 flowchart TD
     Caller["Caller or member-services user"]
-    CallUI["Call experience<br/>voice, text, structured results"]
+    CallUI["Caller experience<br/>Chat, Voice, structured results"]
     ManagerUI["Operations dashboard"]
     API["FastAPI + ADK application<br/>REST, SSE, WebSocket"]
     Orchestrator["ADK orchestrator<br/>intent, session state, tool routing"]
@@ -151,7 +152,7 @@ flowchart TD
     OpsAPI["Events, alerts, metrics,<br/>and session-summary APIs"]
 
     Caller --> CallUI
-    CallUI -->|"/run_sse or /ws/voice"| API
+    CallUI -->|"/ws/conversation or /run_sse"| API
     API --> Orchestrator
     Orchestrator --> ROI
     Orchestrator --> Claim
@@ -177,7 +178,7 @@ flowchart TD
 | Layer | Responsibility |
 |---|---|
 | Frontend | Presents conversation and structured results; never determines claim, coverage, ROI, or readiness facts. |
-| FastAPI/ADK application | Hosts text endpoints, the live voice WebSocket, read-only operational APIs, and the fallback demo. |
+| FastAPI/ADK application | Hosts text endpoints, the chat-first conversation WebSocket, read-only operational APIs, and the fallback demo. |
 | Orchestrator | Owns the conversation, establishes session state, enforces ROI, and invokes deterministic specialist tools while retaining control. |
 | Claim Story | Builds a grounded lifecycle and denial explanation for one exact claim. |
 | Benefits Q&A | Builds deterministic coverage, prior-authorization, cost, and provider guidance. |
@@ -281,6 +282,85 @@ values.
 | `intent_history` | Records routed intents. |
 | `agent_findings` | Stores structured claim, benefit, ROI, and readiness results. |
 | timing and outcome fields | Supports session metrics and intervention tracking. |
+
+### Chat and Voice conversation channel
+
+The implemented conversation endpoint is `WS /ws/conversation`.
+`WS /ws/voice` is retained as a backward-compatible alias. Each socket creates
+one ADK session and begins in `chat` mode. Chat and Voice are peer modes; a mode
+change does not create a new session, so caller identity, ROI status, intent
+history, and structured specialist findings remain available.
+
+The separate frontend must initially select Chat. It must not request
+microphone permission, send microphone frames, or play spoken audio until the
+user explicitly selects Voice. Switching back to Chat must stop microphone
+capture and queued playback while leaving the socket and session active.
+
+#### Browser-to-server frames
+
+| Frame | Status | Meaning |
+|---|---|---|
+| `{"type":"text","text":"..."}` | Implemented | Sends validated typed input in either mode. Text is trimmed, must be non-empty, and is limited to 4,000 characters. |
+| `{"type":"set_mode","mode":"chat"}` | Implemented | Selects text-only presentation without resetting the session. |
+| `{"type":"set_mode","mode":"voice"}` | Implemented | Enables microphone input and spoken-response frames for the same session. |
+| Binary | Implemented in Voice only | Raw signed PCM16 little-endian, mono, 16 kHz microphone audio. Audio sent while Chat is active is rejected with a non-fatal typed error. |
+| `{"type":"end_turn"}` | Deferred | Not used while the live model uses automatic activity detection. Add only with an explicitly configured push-to-talk flow. |
+
+#### Server-to-browser frames
+
+| Frame | Meaning |
+|---|---|
+| `session_started` | Announces `session_id`, initial `mode: "chat"`, `summary_url`, and the input/output audio formats before the first turn. |
+| `mode_changed` | Confirms the active `chat` or `voice` mode. |
+| Binary | Raw signed PCM16 little-endian, mono, 24 kHz agent audio; emitted only in Voice mode. |
+| `user_transcript` | Caller transcript fragment produced by live audio transcription. |
+| `agent_transcript` | Agent response transcript fragment; this is the visible response in Chat mode. |
+| `interrupted` | Indicates caller barge-in; the frontend must immediately stop queued playback. |
+| `turn_complete` | Marks the end of a response and repeats `session_id` plus `summary_url` so structured cards can refresh. |
+| `error` | Returns a user-safe code, message, and retryable flag. Implemented codes are `invalid_message`, `voice_mode_required`, `session_initialization_failed`, and `live_model_unavailable`; exception details are never sent to the browser. |
+
+The conversation runner uses the configured audio-native live model and keeps
+the same deterministic orchestrator tools in both modes. Chat suppresses audio
+frames and renders the agent transcript; Voice forwards the same transcript
+plus spoken audio. The existing `/run` and `/run_sse` endpoints remain
+available as standalone text-model channels.
+
+Structured claim, benefit, ROI, readiness, and notification facts are not
+duplicated into WebSocket `domain_result` messages. The frontend uses the
+emitted `summary_url` and `GET /api/sessions/{session_id}/summary`; an
+incomplete summary exists as soon as `session_started` is emitted. Add direct
+domain-result frames only if measured latency proves the summary fetch is
+insufficient.
+
+Current channel configuration:
+
+| Use | Model setting | Location setting |
+|---|---|---|
+| Standalone text endpoints | `MODEL_NAME` (`gemini-3.5-flash` default) | `GOOGLE_CLOUD_LOCATION` (`us` default) |
+| Chat / Voice conversation socket | `LIVE_MODEL_NAME` (`gemini-live-2.5-flash-native-audio` default) | `LIVE_MODEL_LOCATION` (`us-central1` default) |
+| Voice | `LIVE_VOICE_NAME` (`Aoede` default) | Uses the live-model location |
+
+The live channel publishes `session_started` and `session_completed` events
+with conversation metadata. Session completion conservatively does not infer
+resolution, repeat contact, or human escalation merely from socket closure.
+The static `/demo` page remains a small voice-only reference: its existing
+Start call action explicitly sends `set_mode: "voice"`. It is not the final
+Chat / Voice frontend.
+
+Voice clients must request mono audio with echo cancellation and noise
+suppression, capture through an `AudioWorklet`, downsample to 16 kHz, and encode
+signed PCM16 little-endian frames. Playback must decode 24 kHz PCM16, schedule
+buffers without overlap or gaps, track active sources, and stop all queued
+audio on `interrupted`, mode change to Chat, disconnect, or session end.
+
+Implementation references:
+
+- `backend/src/api/voice.py` — conversation route, session lifecycle, mode
+  gating, ADK live runner pumps, summaries, and safe failures
+- `backend/src/models/voice.py` — validated client and server frame contracts
+- `backend/tests/test_voice_api.py` — Chat default, bidirectional mode switching,
+  audio gating, transcript delivery, summary correlation, and failure tests
+- `backend/static/index.html` — minimal legacy voice adapter only
 
 ### Events
 
@@ -520,7 +600,7 @@ Initial scope:
 the operational APIs expose that change.
 
 **Safe stopping point:** use API JSON or the existing Streamlit dashboard.
-A React dashboard is not required.
+A separate frontend dashboard is not required for this checkpoint.
 
 ### Feature 10 — Minimal operations dashboard
 
@@ -570,7 +650,7 @@ Reliability requirements:
 
 - fixed synthetic IDs
 - cached or deterministic fallback responses
-- typed fallback for voice
+- Chat mode and typed fallback for Voice
 - screenshot or video backup
 
 **Feature complete when:** the script succeeds repeatedly in the presentation
@@ -580,26 +660,40 @@ environment and each displayed result can be traced to source data.
 features as consecutive deterministic demonstrations rather than pretending
 they form one live transaction.
 
-### Feature 12 — Minimal React caller and dashboard application
+### Feature 12 — Caller and dashboard frontend integration
 
 - **Priority:** P2
-- **Depends on:** stable backend APIs; detailed design is in
-  [Frontend and Voice Plan](frontend_voice_plan.md)
+- **Depends on:** the implemented conversation, session-summary, events,
+  alerts, and metrics APIs
 - **Purpose:** improve presentation without changing domain behavior.
 
 Minimum scope:
 
 - `/call` and `/dashboard`
-- voice parity with `/demo`
-- typed fallback
+- a two-option Chat / Voice selector with Chat initially selected
+- `WS /ws/conversation` mode switching without replacing the active session
+- no microphone permission request until Voice is explicitly selected
+- complete microphone cleanup and audio-queue cancellation when returning to
+  Chat or ending the session
+- typed conversation, caller/agent transcripts, spoken playback, barge-in, and
+  user-safe disconnected/error states
+- `session_started` and `turn_complete` handling through the emitted
+  `summary_url`
 - essential Claim Story, Benefits, ROI, Readiness, and notification cards
 - metric tiles and alert list
 
-**Feature complete when:** React can complete the same fallback-supported demo
-without duplicating domain logic.
+The frontend must treat transcripts as conversational aids and use structured
+summary responses for factual cards. It must never determine claim, coverage,
+ROI, readiness, cost, or escalation facts. Notification content must remain
+visibly labeled `preview` and `not_sent`.
 
-**Safe stopping point:** stop at any stable subset of routes or cards and retain
-`/demo` plus Streamlit for missing pieces.
+**Feature complete when:** the frontend can toggle between fully usable Chat
+and Voice modes in one session, refresh structured cards after turns, and show
+the same fallback-supported domain and operations workflow without duplicating
+backend logic.
+
+**Safe stopping point:** the frontend is a separate workstream; retain `/demo`
+and `/operations` as backend-owned fallbacks while it is integrated.
 
 ## 11. Stretch features requiring refinement
 

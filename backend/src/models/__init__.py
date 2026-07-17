@@ -36,6 +36,20 @@ from .sentinel import (
     SentinelSnapshot,
 )
 from .session import MemberSessionContext
+from .voice import (
+    VoiceAudioFormat,
+    VoiceClientMessage,
+    VoiceError,
+    VoiceInterrupted,
+    VoiceModeChanged,
+    VoiceServerMessage,
+    VoiceSetModeInput,
+    VoiceSessionStarted,
+    VoiceTextInput,
+    VoiceTranscript,
+    VoiceTurnComplete,
+    voice_client_message_adapter,
+)
 
 __all__ = [
     "AgentEvent",
@@ -70,4 +84,16 @@ __all__ = [
     "SentinelAlert",
     "SentinelSnapshot",
     "SessionSummary",
+    "VoiceAudioFormat",
+    "VoiceClientMessage",
+    "VoiceError",
+    "VoiceInterrupted",
+    "VoiceModeChanged",
+    "VoiceServerMessage",
+    "VoiceSetModeInput",
+    "VoiceSessionStarted",
+    "VoiceTextInput",
+    "VoiceTranscript",
+    "VoiceTurnComplete",
+    "voice_client_message_adapter",
 ]

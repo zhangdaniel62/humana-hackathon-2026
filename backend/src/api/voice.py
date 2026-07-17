@@ -1,18 +1,19 @@
-"""WebSocket bridge between a browser microphone and the ADK live runner.
+"""Chat-first WebSocket bridge to the ADK live conversation runner.
 
 Wire protocol with the browser:
 - upstream binary frames: raw 16-bit PCM mono microphone audio at 16 kHz
 - upstream text frames: JSON ``{"type": "text", "text": "..."}`` typed input
+- upstream mode frames: JSON ``{"type": "set_mode", "mode": "chat|voice"}``
 - downstream binary frames: raw 16-bit PCM mono agent audio at 24 kHz
-- downstream text frames: JSON with ``type`` of ``user_transcript``,
-  ``agent_transcript``, ``interrupted``, or ``turn_complete``
+- downstream text frames: validated JSON messages for session correlation,
+  transcripts, interruption, turn completion, and user-safe errors
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
+from dataclasses import dataclass
 from time import monotonic
 from uuid import uuid4
 
@@ -21,10 +22,25 @@ from google.adk.agents import LiveRequestQueue
 from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.runners import InMemoryRunner
 from google.genai import types
+from pydantic import ValidationError
 
 from ..agents.orchestrator import create_voice_orchestrator
 from ..events import event_log
-from ..models import AgentEvent, EventType
+from ..models import (
+    AgentEvent,
+    EventType,
+    VoiceError,
+    VoiceInterrupted,
+    VoiceModeChanged,
+    VoiceServerMessage,
+    VoiceSessionStarted,
+    VoiceSetModeInput,
+    VoiceTextInput,
+    VoiceTranscript,
+    VoiceTurnComplete,
+    voice_client_message_adapter,
+)
+from ..services.session_summary import session_summary_store
 from ..settings import settings
 
 logger = logging.getLogger(__name__)
@@ -34,8 +50,17 @@ router = APIRouter()
 VOICE_APP_NAME = "claim_assist_voice"
 VOICE_USER_ID = "demo-caller"
 INPUT_AUDIO_MIME_TYPE = "audio/pcm;rate=16000"
+SESSION_SUMMARY_PATH = "/api/sessions/{session_id}/summary"
 
 _runner: InMemoryRunner | None = None
+
+
+@dataclass(slots=True)
+class ConversationModeState:
+    """Mutable per-connection presentation mode shared by both socket pumps."""
+
+    mode: str = "chat"
+    audio_warning_sent: bool = False
 
 
 def _get_runner() -> InMemoryRunner:
@@ -72,67 +97,182 @@ def _build_run_config() -> RunConfig:
 
 @router.websocket("/ws/voice")
 async def voice_call(websocket: WebSocket) -> None:
-    """Run one live voice session over a browser WebSocket."""
+    """Run one chat-first conversation that can opt into live voice."""
 
     await websocket.accept()
-    runner = _get_runner()
-    session_id = str(uuid4())
-    session = await runner.session_service.create_session(
-        app_name=VOICE_APP_NAME,
-        user_id=VOICE_USER_ID,
-        session_id=session_id,
-        state={"session_id": session_id},
+    try:
+        runner = _get_runner()
+        session_id = str(uuid4())
+        initial_state = {
+            "session_id": session_id,
+            "channel": "conversation",
+            "conversation_mode": "chat",
+            # The transport emits SESSION_STARTED as soon as the call connects.
+            # The context tool uses this flag to avoid publishing a duplicate.
+            "_session_started_emitted": True,
+        }
+        session = await runner.session_service.create_session(
+            app_name=VOICE_APP_NAME,
+            user_id=VOICE_USER_ID,
+            session_id=session_id,
+            state=initial_state,
+        )
+    except Exception:
+        logger.exception("Could not initialize a live conversation session")
+        await _send_error_safely(
+            websocket,
+            VoiceError(
+                code="session_initialization_failed",
+                message=(
+                    "The conversation could not be started. Please try again "
+                    "shortly."
+                ),
+                retryable=True,
+            ),
+        )
+        await _close_safely(websocket, code=1011)
+        return
+
+    summary_url = SESSION_SUMMARY_PATH.format(session_id=session.id)
+    session_summary_store.capture(initial_state)
+    event_log.publish_nowait(
+        AgentEvent(
+            session_id=session.id,
+            agent="orchestrator",
+            event_type=EventType.SESSION_STARTED,
+            payload={
+                "channel": "conversation",
+                "initial_mode": "chat",
+                "synthetic": True,
+            },
+        )
     )
     started_at = monotonic()
+    try:
+        await _send_message(
+            websocket,
+            VoiceSessionStarted(
+                session_id=session.id,
+                summary_url=summary_url,
+            ),
+        )
+    except (RuntimeError, WebSocketDisconnect):
+        _publish_session_completed(
+            session.id,
+            started_at=started_at,
+            transport_error=True,
+        )
+        return
+
     live_queue = LiveRequestQueue()
+    mode_state = ConversationModeState()
+    live_failure: BaseException | None = None
     try:
         async with asyncio.TaskGroup() as tasks:
-            tasks.create_task(_pump_caller_audio(websocket, live_queue))
             tasks.create_task(
-                _pump_agent_events(websocket, runner, session.id, live_queue)
+                _pump_caller_audio(websocket, live_queue, mode_state)
+            )
+            tasks.create_task(
+                _pump_agent_events(
+                    websocket,
+                    runner,
+                    session.id,
+                    live_queue,
+                    mode_state,
+                )
             )
     except* WebSocketDisconnect:
         pass
-    except* Exception:
-        logger.exception("Voice session %s failed", session.id)
+    except* Exception as exc_group:
+        live_failure = exc_group
+        logger.error("Voice session %s failed", session.id, exc_info=exc_group)
     finally:
         live_queue.close()
-        event_log.publish_nowait(
-            AgentEvent(
-                session_id=session.id,
-                agent="orchestrator",
-                event_type=EventType.SESSION_COMPLETED,
-                payload={
-                    "duration_seconds": round(monotonic() - started_at, 2),
-                    "resolved": False,
-                    "repeat_contact": False,
-                    "human_escalation": False,
-                    "synthetic": True,
-                },
-            )
+        _publish_session_completed(
+            session.id,
+            started_at=started_at,
+            transport_error=live_failure is not None,
+            final_mode=mode_state.mode,
         )
+
+    if live_failure is not None:
+        await _send_error_safely(
+            websocket,
+            VoiceError(
+                code="live_model_unavailable",
+                message=(
+                    "The live conversation service is temporarily unavailable. "
+                    "Your structured session results remain available; please retry."
+                ),
+                retryable=True,
+            ),
+        )
+        await _close_safely(websocket, code=1011)
+
+
+@router.websocket("/ws/conversation")
+async def conversation(websocket: WebSocket) -> None:
+    """Preferred chat-first alias for the backward-compatible voice route."""
+
+    await voice_call(websocket)
 
 
 async def _pump_caller_audio(
-    websocket: WebSocket, live_queue: LiveRequestQueue
+    websocket: WebSocket,
+    live_queue: LiveRequestQueue,
+    mode_state: ConversationModeState,
 ) -> None:
-    """Forward microphone audio (and typed fallback text) into the live queue."""
+    """Forward typed chat and explicitly enabled microphone audio."""
 
     while True:
         message = await websocket.receive()
         if message["type"] == "websocket.disconnect":
             raise WebSocketDisconnect(code=message.get("code") or 1000)
         if audio := message.get("bytes"):
+            if mode_state.mode != "voice":
+                if not mode_state.audio_warning_sent:
+                    await _send_message(
+                        websocket,
+                        VoiceError(
+                            code="voice_mode_required",
+                            message=(
+                                "Choose voice mode before sending microphone audio."
+                            ),
+                        ),
+                    )
+                    mode_state.audio_warning_sent = True
+                continue
             live_queue.send_realtime(
                 types.Blob(data=audio, mime_type=INPUT_AUDIO_MIME_TYPE)
             )
-        elif text := message.get("text"):
-            payload = json.loads(text)
-            if payload.get("type") == "text" and payload.get("text"):
+        elif (text := message.get("text")) is not None:
+            try:
+                payload = voice_client_message_adapter.validate_json(text)
+            except ValidationError:
+                await _send_message(
+                    websocket,
+                    VoiceError(
+                        code="invalid_message",
+                        message=(
+                            "Send a supported JSON message with type 'text' or "
+                            "'set_mode'."
+                        ),
+                    ),
+                )
+                continue
+
+            if isinstance(payload, VoiceTextInput):
                 live_queue.send_content(
                     types.Content(
-                        role="user", parts=[types.Part(text=payload["text"])]
+                        role="user", parts=[types.Part(text=payload.text)]
                     )
+                )
+            elif isinstance(payload, VoiceSetModeInput):
+                mode_state.mode = payload.mode
+                mode_state.audio_warning_sent = False
+                await _send_message(
+                    websocket,
+                    VoiceModeChanged(mode=payload.mode),
                 )
 
 
@@ -141,8 +281,9 @@ async def _pump_agent_events(
     runner: InMemoryRunner,
     session_id: str,
     live_queue: LiveRequestQueue,
+    mode_state: ConversationModeState,
 ) -> None:
-    """Stream agent audio, transcripts, and turn signals back to the browser."""
+    """Stream text in chat mode and add audio only after voice is selected."""
 
     async for event in runner.run_live(
         user_id=VOICE_USER_ID,
@@ -152,24 +293,82 @@ async def _pump_agent_events(
     ):
         content = event.content
         for part in (content.parts if content and content.parts else []):
-            if part.inline_data and part.inline_data.data:
+            if (
+                mode_state.mode == "voice"
+                and part.inline_data
+                and part.inline_data.data
+            ):
                 await websocket.send_bytes(part.inline_data.data)
         if event.input_transcription and event.input_transcription.text:
-            await _send_json(
+            await _send_message(
                 websocket,
-                {"type": "user_transcript", "text": event.input_transcription.text},
+                VoiceTranscript(
+                    type="user_transcript", text=event.input_transcription.text
+                ),
             )
         if event.output_transcription and event.output_transcription.text:
-            await _send_json(
+            await _send_message(
                 websocket,
-                {"type": "agent_transcript", "text": event.output_transcription.text},
+                VoiceTranscript(
+                    type="agent_transcript", text=event.output_transcription.text
+                ),
             )
         if event.interrupted:
-            await _send_json(websocket, {"type": "interrupted"})
+            await _send_message(websocket, VoiceInterrupted())
         if event.turn_complete:
-            await _send_json(websocket, {"type": "turn_complete"})
-    await websocket.close()
+            await _send_message(
+                websocket,
+                VoiceTurnComplete(
+                    session_id=session_id,
+                    summary_url=SESSION_SUMMARY_PATH.format(session_id=session_id),
+                ),
+            )
+    await _close_safely(websocket)
 
 
-async def _send_json(websocket: WebSocket, payload: dict) -> None:
-    await websocket.send_text(json.dumps(payload))
+async def _send_message(
+    websocket: WebSocket, payload: VoiceServerMessage
+) -> None:
+    await websocket.send_json(payload.model_dump(mode="json"))
+
+
+async def _send_error_safely(websocket: WebSocket, payload: VoiceError) -> None:
+    try:
+        await _send_message(websocket, payload)
+    except (RuntimeError, WebSocketDisconnect):
+        pass
+
+
+async def _close_safely(websocket: WebSocket, code: int = 1000) -> None:
+    try:
+        await websocket.close(code=code)
+    except (RuntimeError, WebSocketDisconnect):
+        pass
+
+
+def _publish_session_completed(
+    session_id: str,
+    *,
+    started_at: float,
+    transport_error: bool,
+    final_mode: str = "chat",
+) -> None:
+    event_log.publish_nowait(
+        AgentEvent(
+            session_id=session_id,
+            agent="orchestrator",
+            event_type=EventType.SESSION_COMPLETED,
+            payload={
+                "duration_seconds": round(monotonic() - started_at, 2),
+                # The transport cannot truthfully infer resolution or repeat
+                # contact from a closed socket, so those remain conservative.
+                "resolved": False,
+                "repeat_contact": False,
+                "human_escalation": False,
+                "channel": "conversation",
+                "final_mode": final_mode,
+                "transport_error": transport_error,
+                "synthetic": True,
+            },
+        )
+    )

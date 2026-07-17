@@ -18,4 +18,6 @@ def test_core_http_and_voice_routes_are_available() -> None:
     assert "claim_assist" in apps.json()
     assert demo.status_code == 200
     assert "Claim Assist" in demo.text
+    assert "set_mode" in demo.text
     assert str(app.url_path_for("voice_call")) == "/ws/voice"
+    assert str(app.url_path_for("conversation")) == "/ws/conversation"

@@ -136,6 +136,7 @@ async function startCall() {
     ws.onopen = resolve;
     ws.addEventListener('close', reject, { once: true });
   }).catch(() => { throw new Error('could not connect'); });
+  ws.send(JSON.stringify({ type: 'set_mode', mode: 'voice' }));
 
   mediaStream = await navigator.mediaDevices.getUserMedia({
     audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },

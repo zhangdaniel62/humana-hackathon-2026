@@ -62,6 +62,17 @@ Operational endpoints:
 - `GET /api/sessions/{session_id}/summary`
 - `POST /api/demo/golden-path` (synthetic local demo trigger)
 
+The caller conversation backend is available at `WS /ws/conversation`, with
+`/ws/voice` retained as an alias. It starts in Chat mode and emits
+`session_started` with a session ID, the session-summary URL, and the 16 kHz
+input / 24 kHz output PCM formats. Text uses
+`{"type":"text","text":"..."}`. The same session switches either direction
+with `{"type":"set_mode","mode":"chat|voice"}`; binary PCM16 microphone and
+spoken-response frames are enabled only in Voice mode. Each `turn_complete`
+message includes the summary URL for refreshing structured result cards.
+Malformed typed messages and live-service failures return user-safe `error`
+messages; backend exception details are never sent to the browser.
+
 The golden path uses member `MBR00109`, denied claim `CLM000490`, and In Review
 claim `CLM000493`. Its notification is always a grounded `preview` with
 delivery status `not_sent`; no external message is delivered.
