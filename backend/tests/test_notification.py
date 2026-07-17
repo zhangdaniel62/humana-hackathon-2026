@@ -32,4 +32,3 @@ def test_preview_uses_only_readiness_evidence_and_is_not_sent() -> None:
     assert preview.grounding["record_id"] == claim.claim_id
     assert claim.diagnosis_code not in preview.message
     assert str(claim.billed_amount) not in preview.message
-

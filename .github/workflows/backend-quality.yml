@@ -33,3 +33,6 @@ jobs:
         run: uv run --frozen pytest -q
       - name: Enforce offline evaluation thresholds
         run: uv run --frozen python -m src.evaluation.run
+      - name: Build backend container
+        working-directory: .
+        run: docker build -f backend/Dockerfile -t claim-assist-backend .

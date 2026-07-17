@@ -37,4 +37,3 @@ def build_notification_preview(
         recommended_actions=assessment.recommended_actions,
         grounding=assessment.grounding.model_dump(mode="json"),
     )
-

@@ -1,0 +1,12 @@
+.git/
+.codex/
+**/.DS_Store
+frontend/node_modules/
+frontend/dist/
+backend/.data/
+backend/.env
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/artifacts/
+backend/tests/

@@ -76,4 +76,3 @@ def test_typed_readiness_event_rejects_missing_evidence() -> None:
             claim_id="CLM000001",
             payload={"rule_id": "RULE-1"},
         )
-

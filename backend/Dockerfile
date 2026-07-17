@@ -1,13 +1,14 @@
 FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim
 
-WORKDIR /app
+WORKDIR /app/backend
 
-COPY pyproject.toml uv.lock ./
+COPY backend/pyproject.toml backend/uv.lock ./
 RUN uv sync --frozen --no-dev
 
-COPY . .
+COPY backend/ ./
+COPY datasets/ /app/datasets/
 
-ENV PATH="/app/.venv/bin:$PATH" \
+ENV PATH="/app/backend/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8000

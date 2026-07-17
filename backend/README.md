@@ -171,10 +171,11 @@ metadata-only delegation traces, and structured Sentinel events. Startup runs
 one idempotent synthetic scan and replays stored event IDs exactly once. ADK
 live sessions and session-summary projections remain process-local.
 
-Container startup uses the tracked Dockerfile:
+Container startup uses the tracked Dockerfile. Run the build from the repository
+root so the image includes the synthetic datasets required by startup seeding:
 
 ```shell
-docker build -t claim-assist-backend .
+docker build -f backend/Dockerfile -t claim-assist-backend .
 docker run --rm -p 8000:8000 --env-file .env claim-assist-backend
 ```
 
