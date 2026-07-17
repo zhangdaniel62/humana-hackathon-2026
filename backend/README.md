@@ -1,4 +1,15 @@
-# Claim Story backend
+# Claim Assist backend
+
+FastAPI and Google ADK backend for Claim Assist. It provides authenticated
+Chat/Voice conversations, grounded claim and benefit guidance, deterministic
+ROI and claim-readiness controls, Sentinel monitoring, and the manager
+operations APIs used by the React frontend. The Claim Story capability below is
+one of the specialized backend services.
+
+For the product overview, screenshots, and full-stack quick start, see the
+[repository README](../README.md).
+
+## Claim Story capability
 
 The claim-story subagent reads one exact claim from BigQuery, validates it with
 Pydantic, prepares deterministic lifecycle and denial facts, and uses Google ADK

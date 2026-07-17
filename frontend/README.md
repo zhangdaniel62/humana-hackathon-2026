@@ -1,8 +1,14 @@
 # Claim Assist frontend
 
-React 19 + TypeScript frontend for the Claim Assist backend. Local development
-uses Vite's same-origin proxy so the backend's HTTP-only session cookie works
-for REST and WebSocket requests without exposing the token to JavaScript.
+React 19 + TypeScript interface for Claim Assist. It provides the live manager
+operations dashboard and the member Chat/Voice experience, while keeping the
+representative queue/workspace clearly labeled as a synthetic demonstration.
+Local development uses Vite's same-origin proxy so the backend's HTTP-only
+session cookie works for REST and WebSocket requests without exposing a token
+to JavaScript.
+
+For the project overview, screenshots, and full-stack quick start, see the
+[repository README](../README.md).
 
 ## Run locally
 

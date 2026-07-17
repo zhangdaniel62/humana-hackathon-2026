@@ -1,9 +1,10 @@
 # Claim Story AI — Project Context
 
 Humana hackathon 2026. A multi-agent Member & Claims Intelligence system on Google's
-Agent Development Kit (ADK / `google-adk`). Full spec: `assets/docs/initial_plan.md`
-(read §5 data models, §6 Phase 2, note #4 ADK guidance, and note #5a before touching
-the ROI agent).
+Agent Development Kit (ADK / `google-adk`). The product scope and current implementation
+status live in `assets/docs/overall_plan.md`; the focused API/UI contracts live alongside
+it in `assets/docs/` (read the ROI and session-state sections before touching the ROI
+agent).
 
 The system routes caller interactions through an orchestrator to specialist agents that
 share one session context. This file is the working context for building agents; keep it
@@ -64,7 +65,8 @@ backend/
     agents/roi_gatekeeper.py    # deterministic check + ADK LlmAgent
   tests/test_roi_check.py       # pure-logic tests via FakeMemberRecordsClient (no creds)
   demo_roi.py                   # deterministic demo + --live (BigQuery+Vertex) demo
-assets/docs/initial_plan.md     # full spec
+assets/docs/overall_plan.md     # product scope, implementation status, and architecture
+assets/docs/*_contract.md       # focused backend/frontend integration contracts
 ```
 Imports are package-style from the `backend/` root: `from src.agents.roi_gatekeeper import ...`.
 
