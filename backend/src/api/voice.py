@@ -27,6 +27,7 @@ from pydantic import ValidationError
 from ..agents.orchestrator import create_voice_orchestrator
 from ..auth.models import AuthUser, Capability, UserRole
 from ..events import event_log
+from ..delegation.store import TraceSink
 from ..models import (
     AgentEvent,
     EventType,
@@ -90,7 +91,7 @@ class TranscriptStreamState:
         self.last_update = ""
 
 
-def _get_runner() -> InMemoryRunner:
+def _get_runner(traces: TraceSink | None = None) -> InMemoryRunner:
     """Create the shared live runner on first use.
 
     Deferred because building the orchestrator opens a BigQuery client,
@@ -100,7 +101,7 @@ def _get_runner() -> InMemoryRunner:
     global _runner
     if _runner is None:
         _runner = InMemoryRunner(
-            agent=create_voice_orchestrator(),
+            agent=create_voice_orchestrator(traces=traces),
             app_name=VOICE_APP_NAME,
         )
     return _runner
@@ -190,10 +191,17 @@ async def _run_conversation(websocket: WebSocket, user: AuthUser) -> None:
     """Run one authenticated conversation with role-appropriate modes."""
 
     voice_allowed = user.has(Capability.VOICE)
-    agent_audio_enabled = user.role is UserRole.CUSTOMER
+    # Voice is a first-class mode for both callers and representatives.  The
+    # frontend remains responsible for choosing whether audio is appropriate
+    # for a particular call-center setup, but the backend contract must not
+    # silently downgrade an authorized representative to transcript-only.
+    agent_audio_enabled = voice_allowed
     await websocket.accept()
     try:
-        runner = _get_runner()
+        app_state = getattr(getattr(websocket, "app", None), "state", None)
+        runner = _get_runner(
+            getattr(app_state, "delegation_trace_store", None)
+        )
         session_id = str(uuid4())
         initial_state = {
             "session_id": session_id,

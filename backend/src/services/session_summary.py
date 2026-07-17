@@ -12,10 +12,11 @@ class SessionSummaryStore:
     def __init__(self) -> None:
         self._states: dict[str, dict[str, Any]] = {}
 
-    def capture(self, state: dict[str, Any]) -> None:
+    def capture(self, state: Any) -> None:
         session_id = state.get("session_id")
         if session_id:
-            self._states[str(session_id)] = deepcopy(dict(state))
+            snapshot = state.to_dict() if hasattr(state, "to_dict") else dict(state)
+            self._states[str(session_id)] = deepcopy(snapshot)
 
     def get(self, session_id: str) -> SessionSummary | None:
         state = self._states.get(session_id)

@@ -264,7 +264,7 @@ def test_websocket_role_and_origin_enforcement(configured_auth_app, login_as) ->
             with client.websocket_connect("/ws/voice") as websocket:
                 started = websocket.receive_json()
                 assert started["type"] == "session_started"
-                assert started["agent_audio_enabled"] is False
+                assert started["agent_audio_enabled"] is True
                 websocket.close()
     finally:
         event_log.clear()

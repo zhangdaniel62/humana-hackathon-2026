@@ -23,14 +23,18 @@ from google.adk.cli.fast_api import get_fast_api_app
 from src.agents import SentinelAgent
 from src.api.auth import router as auth_router
 from src.api.operations import router as operations_router
+from src.api.prevention import router as prevention_router
 from src.api.voice import router as voice_router
 from src.auth import AuthSettings, AuthStore, UserRole
 from src.auth.dependencies import require_role
 from src.auth.http import authentication_middleware
 from src.auth.websocket import WebSocketRouteGuardMiddleware
-from src.events import event_log
+from src.events import SQLiteEventStore, event_log
+from src.clients.claims import CsvClaimsRepository
+from src.delegation import DelegationTraceStore
 from src.models import MetricsBaseline
 from src.operations import OperationsStore
+from src.prevention import PreventionScanner, PreventionStore
 
 BACKEND_DIR = Path(__file__).resolve().parent
 logger = logging.getLogger(__name__)
@@ -59,11 +63,19 @@ metrics_baseline = MetricsBaseline(
 )
 sentinel = SentinelAgent(event_log, baseline=metrics_baseline)
 app.state.event_log = event_log
+app.state.event_store = SQLiteEventStore(auth_settings.database_path)
 app.state.sentinel = sentinel
 app.state.operations_store = OperationsStore(
     auth_settings.database_path,
     BACKEND_DIR.parent / "datasets",
     baseline=metrics_baseline,
+)
+app.state.prevention_store = PreventionStore(auth_settings.database_path)
+app.state.prevention_scanner = PreventionScanner(
+    CsvClaimsRepository(), app.state.prevention_store
+)
+app.state.delegation_trace_store = DelegationTraceStore(
+    auth_settings.database_path
 )
 
 
@@ -83,12 +95,39 @@ async def _claim_assist_lifespan(application):
     application.state.operations_store.initialize(
         enable_demo_seed=application.state.auth_settings.enable_demo_seed
     )
+    application.state.prevention_store = PreventionStore(
+        application.state.auth_store.database_path
+    )
+    application.state.prevention_store.initialize()
+    application.state.prevention_scanner = PreventionScanner(
+        CsvClaimsRepository(), application.state.prevention_store
+    )
+    application.state.delegation_trace_store = DelegationTraceStore(
+        application.state.auth_store.database_path
+    )
+    application.state.delegation_trace_store.initialize()
+    application.state.event_store = SQLiteEventStore(
+        application.state.auth_store.database_path
+    )
+    application.state.event_store.initialize()
+    event_log.attach_store(application.state.event_store, replay=True)
+    try:
+        application.state.prevention_scanner.scan(
+            idempotency_key="startup-actionable-v1",
+            source="startup",
+        )
+    except Exception:
+        # The conversation and existing operational surfaces remain usable if
+        # an external population source is unavailable. Readiness reports the
+        # last completed scan rather than pretending the scan succeeded.
+        logger.exception("The idempotent startup prevention scan failed")
     await sentinel.start(replay_existing=True)
     try:
         async with _adk_lifespan(application):
             yield
     finally:
         await sentinel.stop()
+        event_log.detach_store()
 
 
 app.router.lifespan_context = _claim_assist_lifespan
@@ -96,6 +135,7 @@ app.add_middleware(WebSocketRouteGuardMiddleware, state=app.state)
 app.middleware("http")(authentication_middleware)
 app.include_router(auth_router)
 app.include_router(operations_router)
+app.include_router(prevention_router)
 app.include_router(voice_router)
 
 

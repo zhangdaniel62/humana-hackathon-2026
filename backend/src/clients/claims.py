@@ -56,6 +56,9 @@ class ClaimsRepository(Protocol):
     def get_claim(self, claim_id: str) -> ClaimRow | None:
         """Return the exact claim or ``None`` when it does not exist."""
 
+    def list_actionable_claims(self, *, limit: int = 500) -> list[ClaimRow]:
+        """Return a bounded, stable list of Pending/In Review claims."""
+
 
 class CsvClaimsRepository:
     """Exact-claim repository backed by the synthetic CSV fallback."""
@@ -70,6 +73,17 @@ class CsvClaimsRepository:
         if self._claims is None:
             self._claims = self._load()
         return self._claims.get(claim_id)
+
+    def list_actionable_claims(self, *, limit: int = 500) -> list[ClaimRow]:
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        if self._claims is None:
+            self._claims = self._load()
+        return [
+            claim
+            for claim in sorted(self._claims.values(), key=lambda item: item.claim_id)
+            if claim.claim_status.value in {"Pending", "In Review"}
+        ][:limit]
 
     def _load(self) -> dict[str, ClaimRow]:
         claims: dict[str, ClaimRow] = {}
@@ -104,6 +118,12 @@ class FallbackClaimsRepository:
             return self.primary.get_claim(claim_id)
         except ClaimsRepositoryError:
             return self.fallback.get_claim(claim_id)
+
+    def list_actionable_claims(self, *, limit: int = 500) -> list[ClaimRow]:
+        try:
+            return self.primary.list_actionable_claims(limit=limit)
+        except ClaimsRepositoryError:
+            return self.fallback.list_actionable_claims(limit=limit)
 
 
 class BigQueryClaimsRepository:
@@ -170,6 +190,42 @@ class BigQueryClaimsRepository:
         except (TypeError, ValidationError, ValueError) as exc:
             raise ClaimDataIntegrityError(
                 f"Claim {claim_id} does not match the expected schema"
+            ) from exc
+
+    def list_actionable_claims(self, *, limit: int = 500) -> list[ClaimRow]:
+        """Fetch a bounded population using the same eligibility as readiness."""
+
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        sql = f"""
+            SELECT
+              {", ".join(CLAIM_COLUMNS)}
+            FROM `{self.table_id}`
+            WHERE claim_status IN ('Pending', 'In Review')
+            ORDER BY claim_id
+            LIMIT @limit
+        """
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("limit", "INT64", min(limit, 5_000))
+            ]
+        )
+        try:
+            rows = list(
+                self.client.query(
+                    sql,
+                    job_config=job_config,
+                    location=self.settings.bigquery_location,
+                ).result(max_results=min(limit, 5_000))
+            )
+            return [ClaimRow.model_validate(dict(row)) for row in rows]
+        except (TypeError, ValidationError, ValueError) as exc:
+            raise ClaimDataIntegrityError(
+                "The actionable-claim population does not match the expected schema"
+            ) from exc
+        except Exception as exc:
+            raise ClaimsRepositoryError(
+                "BigQuery actionable-claim scan failed"
             ) from exc
 
     def _validate_table_components(self) -> None:

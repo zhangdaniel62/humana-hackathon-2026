@@ -5,6 +5,7 @@ from __future__ import annotations
 import unittest
 
 from google.adk.tools import FunctionTool
+from google.adk.tools.agent_tool import AgentTool
 
 from src.agents.claim_story import CLAIM_STORY_STATE_KEY
 from src.agents.orchestrator import create_voice_orchestrator
@@ -81,7 +82,11 @@ class VoiceOrchestratorTests(unittest.TestCase):
         )
         self.assertEqual("chat", agent.mode)
         self.assertEqual(6, len(agent.tools))
-        self.assertTrue(all(isinstance(tool, FunctionTool) for tool in agent.tools))
+        self.assertIsInstance(agent.tools[0], FunctionTool)
+        self.assertIsInstance(agent.tools[1], AgentTool)
+        self.assertTrue(
+            all(isinstance(tool, FunctionTool) for tool in agent.tools[2:])
+        )
         self.assertEqual(
             [
                 "establish_member_context",

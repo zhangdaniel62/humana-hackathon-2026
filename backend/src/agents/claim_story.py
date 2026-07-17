@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from google.adk.agents import LlmAgent
+from google.adk.models.base_llm import BaseLlm
 from google.adk.tools import FunctionTool, ToolContext
 from google.genai.types import GenerateContentConfig
 
@@ -133,6 +134,11 @@ def build_lookup_claim_story_tool(
 def create_claim_story_agent(
     settings: Settings | None = None,
     repository: ClaimsRepository | None = None,
+    *,
+    model: str | BaseLlm | None = None,
+    agent_name: str = "claim_story_agent",
+    enforce_member_context: bool = False,
+    events: EventLog | None = None,
 ) -> LlmAgent:
     """Create a standalone, structured-output claim-story ADK agent."""
 
@@ -141,14 +147,20 @@ def create_claim_story_agent(
     service = ClaimStoryService(resolved_repository)
 
     return LlmAgent(
-        name="claim_story_agent",
+        name=agent_name,
         description=(
             "Explains the lifecycle and current outcome of one exact claim using "
             "grounded BigQuery facts."
         ),
-        model=resolved_settings.model_name,
+        model=model or resolved_settings.model_name,
         instruction=CLAIM_STORY_INSTRUCTION,
-        tools=[build_lookup_claim_story_tool(service)],
+        tools=[
+            build_lookup_claim_story_tool(
+                service,
+                enforce_member_context=enforce_member_context,
+                events=events,
+            )
+        ],
         input_schema=ClaimStoryRequest,
         output_schema=ClaimStoryResult,
         output_key=CLAIM_STORY_OUTPUT_KEY,

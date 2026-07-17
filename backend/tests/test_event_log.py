@@ -1,6 +1,7 @@
 import asyncio
 
-from src.events import EventLog
+from src.agents import SentinelAgent
+from src.events import EventLog, SQLiteEventStore
 from src.models import AgentEvent, EventType
 
 
@@ -26,3 +27,32 @@ def test_event_log_replays_and_streams_events() -> None:
         subscription.close()
 
     asyncio.run(scenario())
+
+
+def test_sqlite_event_replay_survives_restart_and_is_exactly_once(tmp_path) -> None:
+    store = SQLiteEventStore(tmp_path / "events.sqlite3")
+    store.initialize()
+    original = EventLog(store)
+    event = AgentEvent(
+        session_id="durable-session",
+        agent="orchestrator",
+        event_type=EventType.SESSION_STARTED,
+        payload={"synthetic": True},
+    )
+    original.publish_nowait(event)
+    original.publish_nowait(event)
+
+    restarted = EventLog(store)
+
+    assert restarted.events == (event,)
+
+    async def replay_twice() -> None:
+        sentinel = SentinelAgent(restarted)
+        await sentinel.start(replay_existing=True)
+        assert sentinel.snapshot().processed_event_count == 1
+        await sentinel.stop()
+        await sentinel.start(replay_existing=True)
+        assert sentinel.snapshot().processed_event_count == 1
+        await sentinel.stop()
+
+    asyncio.run(replay_twice())

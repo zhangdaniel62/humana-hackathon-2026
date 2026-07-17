@@ -62,6 +62,11 @@ Operational endpoints:
 - `GET /api/operations/dashboard?start=YYYY-MM-DD&end=YYYY-MM-DD&bucket=week`
 - `GET /api/sessions/{session_id}/summary`
 - `POST /api/demo/golden-path` (synthetic local demo trigger)
+- `POST /api/prevention/scans` (manager-only idempotent population scan)
+- `GET /api/rep/work-items` (rep-only open plus assigned queue)
+- `POST /api/rep/work-items/{id}/claim|resolve|dismiss`
+- `GET /api/delegation/traces` (manager-only trace metadata)
+- `GET /api/runtime/readiness` (manager-only database/last-scan readiness)
 
 After starting the backend, inspect the chart-ready dashboard response with the
 development manager account:
@@ -78,8 +83,9 @@ curl -b /tmp/claim-assist-cookies.txt \
 The caller conversation backend is available at `WS /ws/conversation`, with
 `/ws/voice` retained as an alias. Customers and reps may enable Voice mode and
 receive streaming user and agent transcripts. Agent audio is sent only to
-customer sessions; rep sessions are transcript-only so the assistant is not
-played into a rep/customer call. The connection starts in Chat mode and emits
+Voice-mode sessions, and both customer and representative roles have audio
+parity. The frontend may choose whether playback is appropriate for a
+particular call-center setup. The connection starts in Chat mode and emits
 `session_started` with a session ID, the session-summary URL,
 `agent_audio_enabled`, and the 16 kHz input / 24 kHz output PCM formats. Text uses
 `{"type":"text","text":"..."}`. The same session switches either direction
@@ -140,10 +146,37 @@ coverage is not presented as proof that a denial was prevented.
 Managers can use the operations dashboard and raw ADK developer APIs. Customers
 and reps can use the current combined chat/call demo and connect to
 `/ws/conversation`. Both roles may stream microphone audio and receive
-transcripts. Customer sessions receive spoken AI responses; rep sessions receive
-the same agent response as text without audio playback. The future frontend
-should use the role, `capabilities`, and `agent_audio_enabled` session field to
-select its presentation.
+transcripts and spoken AI responses in Voice mode. The future frontend should
+use the role, `capabilities`, and `agent_audio_enabled` session field to select
+its presentation.
+
+## Evaluation and durable prototype boundary
+
+Run the deterministic quality corpus and write JSON/Markdown reports:
+
+```shell
+uv run python -m src.evaluation.run
+```
+
+The offline run enforces category thresholds for grounding, reviewed readiness
+rules, ROI, disclosure safety, and the declared routing contract. It does not
+claim live-model routing accuracy. Run the credentialed ADK case explicitly:
+
+```shell
+uv run python -m src.evaluation.run --live
+```
+
+The shared SQLite file persists proactive work items, idempotency records,
+metadata-only delegation traces, and structured Sentinel events. Startup runs
+one idempotent synthetic scan and replays stored event IDs exactly once. ADK
+live sessions and session-summary projections remain process-local.
+
+Container startup uses the tracked Dockerfile:
+
+```shell
+docker build -t claim-assist-backend .
+docker run --rm -p 8000:8000 --env-file .env claim-assist-backend
+```
 
 For local testing without a login cookie, enable the explicit development-only
 auth bypass in `.env` and restart the server:
@@ -153,7 +186,7 @@ AUTH_BYPASS_ENABLED=true
 AUTH_BYPASS_ROLE=customer
 ```
 
-Use `customer` to test spoken AI output or `rep` to test transcript-only calls.
+Use `customer` or `rep` to test spoken AI output in Voice mode.
 The bypass still enforces allowed browser origins and the selected role's
 permissions. It is disabled by default and must never be enabled in a deployed
 environment.

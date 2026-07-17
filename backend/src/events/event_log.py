@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
 from ..models import AgentEvent, EventType
+from .store import EventStore
+
+logger = logging.getLogger(__name__)
 
 
 class EventSubscription:
@@ -46,10 +50,13 @@ class EventSubscription:
 class EventLog:
     """Append-only in-process event topic with non-blocking fan-out."""
 
-    def __init__(self) -> None:
+    def __init__(self, store: EventStore | None = None) -> None:
         self._events: list[AgentEvent] = []
         self._subscribers: set[asyncio.Queue[AgentEvent | None]] = set()
         self._dropped_events = 0
+        self._store = store
+        if store is not None:
+            self._events.extend(store.load())
 
     @property
     def events(self) -> tuple[AgentEvent, ...]:
@@ -73,6 +80,17 @@ class EventLog:
         return EventSubscription(self, queue)
 
     def publish_nowait(self, event: AgentEvent) -> None:
+        if any(existing.event_id == event.event_id for existing in self._events):
+            return
+        if self._store is not None:
+            try:
+                self._store.append(event)
+            except Exception:
+                # Monitoring must remain outside the member response path. Keep
+                # the event in memory and surface the persistence failure in
+                # logs/readiness rather than failing the caller's tool.
+                self._dropped_events += 1
+                logger.exception("Could not persist operational event")
         self._events.append(event)
         for queue in tuple(self._subscribers):
             self._put_without_blocking(queue, event)
@@ -111,6 +129,24 @@ class EventLog:
 
     def clear(self) -> None:
         self._events.clear()
+
+    def attach_store(self, store: EventStore, *, replay: bool = True) -> int:
+        """Attach durable storage and idempotently load its prior events."""
+
+        self._store = store
+        if not replay:
+            return 0
+        known = {event.event_id for event in self._events}
+        loaded = 0
+        for event in store.load():
+            if event.event_id not in known:
+                self._events.append(event)
+                known.add(event.event_id)
+                loaded += 1
+        return loaded
+
+    def detach_store(self) -> None:
+        self._store = None
 
     def _put_without_blocking(
         self,

@@ -12,11 +12,13 @@ from ..auth.dependencies import CurrentUser, require_role
 from ..auth.models import UserRole
 from ..models import (
     MetricsSnapshot,
+    GoldenPathRequest,
     OperationsDashboard,
     SentinelAlert,
     SessionSummary,
 )
-from ..services.golden_path import run_golden_path
+from ..prevention import PreventionConflictError
+from ..services.golden_path import run_expanded_golden_path
 from ..services.session_summary import session_summary_store
 
 router = APIRouter(prefix="/api", tags=["operations"])
@@ -84,8 +86,19 @@ def get_session_summary(session_id: str, user: CurrentUser) -> SessionSummary:
 
 
 @router.post("/demo/golden-path", dependencies=[manager_only])
-async def trigger_golden_path(request: Request) -> dict:
-    result = run_golden_path()
+async def trigger_golden_path(
+    request: Request, payload: GoldenPathRequest | None = None
+) -> dict:
+    requested = payload or GoldenPathRequest()
+    try:
+        result = run_expanded_golden_path(
+            scanner=request.app.state.prevention_scanner,
+            prevention_store=request.app.state.prevention_store,
+            trace_store=request.app.state.delegation_trace_store,
+            idempotency_key=requested.idempotency_key,
+        )
+    except PreventionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     await asyncio.sleep(0)
     result["operations"] = request.app.state.sentinel.snapshot().model_dump(
         mode="json"

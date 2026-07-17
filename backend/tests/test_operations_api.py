@@ -18,13 +18,27 @@ def test_operational_lifecycle_apis_and_golden_path(
         assert sentinel._consumer_task is not None
 
         first = client.post("/api/demo/golden-path")
+        events_after_first = client.get("/api/events?limit=1000").json()
+        metrics_after_first = client.get("/api/metrics").json()
         second = client.post("/api/demo/golden-path")
+        events_after_second = client.get("/api/events?limit=1000").json()
+        metrics_after_second = client.get("/api/metrics").json()
 
         assert first.status_code == 200
         assert second.status_code == 200
         payload = first.json()
         assert payload["status"] == "complete"
         assert payload["fixed_ids"] == second.json()["fixed_ids"]
+        assert payload["workflow_mode"] == "synthetic_rep_simulation"
+        assert payload["replayed"] is False
+        assert second.json()["replayed"] is True
+        assert payload["rep_work_item"]["status"] == "resolved"
+        assert payload["delegation_trace"]["outcome"] == "fallback"
+        assert payload["delegation_trace"]["error_code"] == "offline_demo_mode"
+        assert payload["evaluation"]["thresholds_met"] is True
+        assert payload["evaluation"]["passed"] == payload["evaluation"]["total"]
+        assert len(events_after_second) == len(events_after_first)
+        assert metrics_after_second == metrics_after_first
         assert payload["notification_preview"]["delivery_status"] == "not_sent"
         assert payload["intervention"]["status"] == "recorded"
 

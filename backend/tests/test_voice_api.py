@@ -155,7 +155,7 @@ def test_voice_connection_announces_session_and_records_lifecycle() -> None:
     )
     assert started["input_audio"]["sample_rate_hz"] == 16_000
     assert started["output_audio"]["sample_rate_hz"] == 24_000
-    assert started["agent_audio_enabled"] is False
+    assert started["agent_audio_enabled"] is True
     assert session_summary_store.get(started["session_id"]).status == "incomplete"
     assert [event.event_type for event in event_log.events] == [
         EventType.SESSION_STARTED,
@@ -320,7 +320,7 @@ def test_agent_events_deduplicate_transcripts_and_reset_between_turns() -> None:
     ]
 
 
-def test_rep_voice_keeps_transcripts_but_suppresses_agent_audio() -> None:
+def test_audio_disabled_transport_keeps_transcripts_but_suppresses_audio() -> None:
     websocket = StubWebSocket()
 
     asyncio.run(

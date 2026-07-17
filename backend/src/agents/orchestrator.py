@@ -7,6 +7,7 @@ from google.adk.models.google_llm import Gemini
 from google.adk.tools import FunctionTool
 
 from ..clients.claims import ClaimsRepository, create_claims_repository
+from ..delegation.store import InMemoryDelegationTraceStore, TraceSink
 from ..clients.member_records import (
     MemberRecordsClient,
     create_member_records_client,
@@ -21,6 +22,8 @@ from .claim_readiness import (
     build_screen_claim_readiness_tool,
 )
 from .claim_story import build_lookup_claim_story_tool
+from .claim_story import create_claim_story_agent
+from .delegation import TracedClaimStoryAgentTool
 from .session_context import build_establish_member_context_tool
 
 VOICE_ORCHESTRATOR_INSTRUCTION = """
@@ -75,6 +78,8 @@ Response style:
   every field.
 """.strip()
 
+_default_trace_store = InMemoryDelegationTraceStore()
+
 
 def create_voice_orchestrator(
     settings: Settings | None = None,
@@ -82,6 +87,7 @@ def create_voice_orchestrator(
     model_name: str | None = None,
     member_records_client: MemberRecordsClient | None = None,
     events: EventLog | None = None,
+    traces: TraceSink | None = None,
 ) -> LlmAgent:
     """Create the root agent that fronts the caller channel.
 
@@ -89,11 +95,9 @@ def create_voice_orchestrator(
     ``model_name=settings.model_name`` for text channels, because live models
     reject the ``generateContent`` API that ``/run`` and ``/run_sse`` use.
 
-    The orchestrator narrates directly from the deterministic
-    ``lookup_claim_story`` tool rather than delegating to the structured
-    claim-story agent: nesting an output-schema agent as a tool forces its
-    LLM to re-emit the whole ClaimStoryResult JSON verbatim, which is
-    unreliable (truncation and repetition loops observed with flash models).
+    Claim Story uses a real ADK ``AgentTool`` specialist handoff. Its typed
+    output is checked against the deterministic repository result; exceptions,
+    malformed output, or grounding mismatches fail closed to the direct tool.
     """
 
     resolved_settings = settings or default_settings
@@ -106,6 +110,19 @@ def create_voice_orchestrator(
     claim_story_service = ClaimStoryService(resolved_repository)
     readiness_service = ClaimReadinessService(resolved_repository)
     resolved_events = events or event_log
+    resolved_traces = traces or _default_trace_store
+    direct_claim_tool = build_lookup_claim_story_tool(
+        claim_story_service,
+        enforce_member_context=True,
+        events=resolved_events,
+    )
+    claim_story_specialist = create_claim_story_agent(
+        resolved_settings,
+        resolved_repository,
+        agent_name="lookup_claim_story",
+        enforce_member_context=True,
+        events=resolved_events,
+    )
     if model_name is None:
         # The live model is only served in some regions (us-central1 for this
         # project), which may differ from GOOGLE_CLOUD_LOCATION, so give the
@@ -131,10 +148,11 @@ def create_voice_orchestrator(
         mode="chat",
         tools=[
             build_establish_member_context_tool(resolved_member_records, resolved_events),
-            build_lookup_claim_story_tool(
-                claim_story_service,
-                enforce_member_context=True,
-                events=resolved_events,
+            TracedClaimStoryAgentTool(
+                agent=claim_story_specialist,
+                fallback_tool=direct_claim_tool,
+                service=claim_story_service,
+                trace_sink=resolved_traces,
             ),
             build_screen_claim_readiness_tool(
                 readiness_service,

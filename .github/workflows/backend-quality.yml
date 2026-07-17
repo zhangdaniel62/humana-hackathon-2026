@@ -1,0 +1,35 @@
+name: Backend quality
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-quality.yml"
+  push:
+    branches: [main, backend]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-quality.yml"
+
+jobs:
+  test-and-evaluate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      GOOGLE_CLOUD_PROJECT: test-project
+      GCS_BUCKET: test-bucket
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          working-directory: backend
+          enable-cache: true
+      - name: Sync locked dependencies
+        run: uv sync --frozen
+      - name: Run backend tests
+        run: uv run --frozen pytest -q
+      - name: Enforce offline evaluation thresholds
+        run: uv run --frozen python -m src.evaluation.run

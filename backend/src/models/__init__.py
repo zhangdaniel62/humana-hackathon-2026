@@ -12,6 +12,7 @@ from .claims import (
     DenialDetails,
     GroundingReference,
 )
+from .delegation import DelegationTrace
 from .readiness import (
     ClaimReadinessAssessment,
     ClaimReadinessRequest,
@@ -31,6 +32,16 @@ from .operations import (
     OperationsTrendPoint,
     RepWorkload,
     SessionSummary,
+)
+from .prevention import (
+    GoldenPathRequest,
+    QueueSnapshot,
+    RepWorkItem,
+    ScanRequest,
+    ScanResult,
+    WorkItemCandidate,
+    WorkItemStatus,
+    WorkItemTransitionRequest,
 )
 from .roi import ROICheckResult, ROIStatus
 from .sentinel import (
@@ -79,8 +90,10 @@ __all__ = [
     "ClaimTimelineEventType",
     "DataCompleteness",
     "DenialDetails",
+    "DelegationTrace",
     "EventType",
     "GroundingReference",
+    "GoldenPathRequest",
     "InterventionFunnel",
     "MetricsBaseline",
     "MetricsSnapshot",
@@ -89,6 +102,7 @@ __all__ = [
     "OperationsDashboardMetadata",
     "OperationsMetricSummary",
     "OperationsTrendPoint",
+    "QueueSnapshot",
     "ReadinessEventPayload",
     "MemberSessionContext",
     "ReadinessFactor",
@@ -96,6 +110,9 @@ __all__ = [
     "ROICheckResult",
     "ROIStatus",
     "RepWorkload",
+    "RepWorkItem",
+    "ScanRequest",
+    "ScanResult",
     "SentinelAlert",
     "SentinelSnapshot",
     "SessionSummary",
@@ -110,5 +127,8 @@ __all__ = [
     "VoiceTextInput",
     "VoiceTranscript",
     "VoiceTurnComplete",
+    "WorkItemCandidate",
+    "WorkItemStatus",
+    "WorkItemTransitionRequest",
     "voice_client_message_adapter",
 ]
