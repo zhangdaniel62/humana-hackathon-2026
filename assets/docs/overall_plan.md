@@ -17,23 +17,27 @@ feature. Status reflects the current repository, not the target architecture.
 
 | Area | Status | Implemented now | Work remaining | Roadmap |
 |---|---|---|---|---|
-| FastAPI and ADK platform | **Implemented through P1** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/conversation`, `/ws/voice`, `/demo`, `/operations`, auth APIs, and the summary, live-operations, and persisted-dashboard APIs are mounted; lifecycle, authentication, and route behavior are verified. | Durable ADK/session persistence and distributed deployment remain future work. | Foundation; Features 0, 6, 9–10 |
+| FastAPI and ADK platform | **Implemented through current P1** | ADK UI, `/run`, `/run_sse`, session endpoints, `/ws/conversation`, `/ws/voice`, `/demo`, `/operations`, auth APIs, and the summary, live-operations, and persisted-dashboard APIs are mounted; lifecycle, authentication, and route behavior are verified. | Restart-safe repository boundaries and deployment evidence are Feature 16; distributed deployment remains future work. | Foundation; Features 0, 6, 9–10, 16 |
 | Authentication and role access | **Hackathon backend implemented** | One local SQLite file stores users, hashed sessions, synthetic reps, and synthetic operations history. Argon2 passwords, opaque hashed sessions, tracked schemas/seeds, login/me/logout APIs, allowed-origin checks, HTTP/WebSocket RBAC, role capabilities, an explicit disabled-by-default local bypass, ADK identity propagation, and summary ownership are verified. | Login and role-specific pages are Feature 12; enterprise identity, MFA, recovery, rate limiting, managed secrets, and durable audit retention remain future work. | Feature 0; Feature 12 UI |
 | First-class Chat and Voice | **Backend modes implemented; rep audio parity pending** | Authenticated customers and reps use `/ws/conversation` or `/ws/voice` and can switch between Chat and Voice without losing the session. Chat is a complete product mode with typed turns and visible agent responses; it is not a Voice fallback. Voice supports microphone input and transcripts. Continuous input, interruption handling, validated text/mode frames, session correlation, summary-aware turn completion, transcript de-duplication, and typed safe errors are wired to the shared root-agent factory. | The current code suppresses spoken AI output for reps by setting `agent_audio_enabled=false`; this conflicts with the target first-class Voice contract and must be corrected so both roles receive full Voice behavior. A credentialed microphone-to-live-model call also remains an environment check. | Features 0, 6, 8, 12 |
 | Claim Story | **Implemented and integrated** | Exact BigQuery lookup with synthetic CSV fallback, deterministic timeline and denial guidance, grounding, confidence handling, escalation, shared findings, ROI enforcement, and typed denial/escalation events are verified. | Population-wide analysis and production data operations remain future work. | Features 3–5, 9 |
 | Benefits Q&A | **Implemented and integrated** | Deterministic coverage, prior authorization, cost, provider guidance, CSV/BigQuery clients, ambiguity handling, ROI refusal, shared findings, typed operational events, orchestrator routing, and summary projection are verified. | Production directory freshness and data-source operations remain future work. | Features 4, 6, 9 |
 | ROI controls | **Implemented and integrated** | One shared session context resolves verified, not-required, missing, expired, and unknown ROI; all member-specific tools fail closed, findings project through the summary API, and ROI-gap/session-start events feed Sentinel. | Production identity proofing and authorization submission remain future work. | Features 3, 6, 9 |
-| Shared orchestrator | **Implemented through P1 integration** | The root agent routes ROI, Claim Story, Benefits Q&A, provider guidance, Claim Readiness, and grounded corrective-intervention recording while preserving language, intent history, structured findings, and operational events across turns. | Production channel integration and durable cross-instance session state remain future work. | Features 2–9 |
-| Claim Readiness | **Implemented and integrated** | Validated deterministic screening, eligibility and completeness handling, ROI enforcement, shared findings, typed risk/recommendation events, grounded unsent previews, corrective-intervention recording, and focused tests are complete. | Population scanning and additional reviewed rules remain stretch or future work. | Features 1–2, 5, 8–9 |
+| Shared orchestrator | **Functional tool-based orchestration implemented** | The root agent routes ROI, Claim Story, Benefits Q&A, provider guidance, Claim Readiness, and grounded corrective-intervention recording while preserving language, intent history, structured findings, and operational events across turns. | Explicit ADK specialist-agent delegation, typed handoffs, trace evidence, and routing evaluation are Feature 14. | Features 2–9, 14 |
+| Claim Readiness | **Exact-claim screening implemented** | Validated deterministic screening, eligibility and completeness handling, ROI enforcement, shared findings, typed risk/recommendation events, grounded unsent previews, corrective-intervention recording, and focused tests are complete. | Population scanning, prioritization, and rep work-item creation are Feature 15; additional risk rules require reviewed data. | Features 1–2, 5, 8–9, 15 |
 | Prevention events | **Implemented and integrated** | Readiness risk, intervention recommendation, and intervention recording use typed evidence payloads in the shared append-only log. | Durable external event streaming remains future work. | Feature 5 |
-| Structured session-summary API | **Implemented and authorized** | `GET /api/sessions/{session_id}/summary` returns validated ROI, claim, benefits, readiness, and preview findings with incomplete-session behavior. Customers can retrieve only their own sessions; reps and managers may retrieve any current in-process summary. | Persistent distributed session storage and narrower rep queue projections remain future work. | Features 0, 6, 12 |
-| Metrics methodology | **Implemented for demo population** | Live Sentinel metrics remain available, and a deterministic synthetic operations history generated from 26 base-week cohorts now supplies chart-ready AHT, mature-cohort FCR/repeat rate, automated/manual routing, per-rep workload, and intervention-funnel calculations against labeled synthetic assumptions. | Production baselines, final-adjudication outcomes, and controlled outcome evaluation remain future work. | Feature 7 |
+| Structured session-summary API | **Implemented and authorized** | `GET /api/sessions/{session_id}/summary` returns validated ROI, claim, benefits, readiness, and preview findings with incomplete-session behavior. Customers can retrieve only their own sessions; reps and managers may retrieve any current in-process summary. | The narrower rep work-queue projection is Feature 15; distributed session storage remains future work. | Features 0, 6, 12, 15 |
+| Metrics methodology | **Implemented for demo population** | Live Sentinel metrics remain available, and a deterministic synthetic operations history generated from 26 base-week cohorts now supplies chart-ready AHT, mature-cohort FCR/repeat rate, automated/manual routing, per-rep workload, and intervention-funnel calculations against labeled synthetic assumptions. | Reproducible AI quality/safety evaluation is Feature 13; production baselines and controlled real-outcome evaluation remain future work. | Features 7, 13 |
 | Notification preview | **Implemented** | At-risk readiness results produce a grounded portal-message preview labeled `preview` and `not_sent`, visible on the operations page. | Real outbound delivery remains future work. | Feature 8 |
-| Sentinel runtime | **Implemented and integrated** | One application-scoped event log and Sentinel lifecycle consume live specialist/session events and expose events, alerts, and metrics APIs. | Durable distributed runtime remains future work. | Feature 9 |
+| Sentinel runtime | **Implemented in process** | One application-scoped event log and Sentinel lifecycle consume live specialist/session events and expose events, alerts, and metrics APIs. | Restart-safe event persistence, replay, deduplication, and health evidence are Feature 16; distributed streaming remains future work. | Features 9, 16 |
 | Synthetic operations history | **Implemented and manager-only** | The shared local SQLite file is seeded idempotently with 1,521 call rows generated from 26 base-week cohorts, including 207 separate synthetic follow-up rows, automated/manual routing, four synthetic reps, and 26 claim-intervention workflow rows. The default completed-period view contains 1,520 rows across 26 weekly points and uses the trailing follow-up only for cohort observation. Supplied CSV/BigQuery source rows are never changed. | Production warehouse ingestion and real outcome linkage remain future work. | Features 0, 7, 10 |
-| Operations dashboard | **Backend complete; role-specific frontend pending** | `/operations` still displays the live Sentinel snapshot. `GET /api/operations/dashboard` adds manager-only weekly/monthly trends, date filtering, default completed-period behavior, manual-versus-automated volumes, per-rep workload, and the intervention funnel from persisted synthetic data. | Implement the five-tab frontend from `assets/docs/dashboard_frontend_contract.md`; advanced breakdowns and push updates remain stretch work. | Features 0, 10, 12 |
-| Expanded golden path | **Implemented with deterministic fallback** | A fixed-ID API/dashboard trigger assembles ROI, denied Claim Story, Benefits, readiness, notification preview, recorded intervention, events, alerts, and metric update; a rendered screenshot backup is stored in `assets/images/`. | Live microphone/model access remains an environment check. | Feature 11 |
-| Role-specific frontend | **Separate workstream** | The backend returns `manager_dashboard`, `chat`, `rep_queue`, and `voice` capabilities and enforces them server-side. The combined `/demo` page is a legacy Voice-first validation surface with optional typed input, not the target Chat experience. The manager dashboard handoff documents exact response fields and page mappings. | Build login plus equal first-class Chat and Voice experiences for customers and reps, and the manager dashboard, without moving domain or authorization logic into the browser. A dedicated rep help-queue projection/API is still required. | Feature 12 |
+| Operations dashboard | **Backend complete; P0 product UI pending** | `/operations` still displays the live Sentinel snapshot. `GET /api/operations/dashboard` adds manager-only weekly/monthly trends, date filtering, default completed-period behavior, manual-versus-automated volumes, per-rep workload, and the intervention funnel from persisted synthetic data. | Implement the five-tab frontend from `assets/docs/dashboard_frontend_contract.md`; advanced breakdowns and push updates remain stretch work. | Features 0, 10, 12 |
+| Expanded golden path | **Implemented with deterministic fallback** | A fixed-ID API/dashboard trigger assembles ROI, denied Claim Story, Benefits, readiness, notification preview, recorded intervention, events, alerts, and metric update; a rendered screenshot backup is stored in `assets/images/`. | Add judge-visible evaluation, agent traces, and proactive queue evidence through Features 13–15. Live microphone/model access remains an environment check. | Features 11, 13–15 |
+| Role-specific frontend | **Pending P0 scoring gate** | The backend returns `manager_dashboard`, `chat`, `rep_queue`, and `voice` capabilities and enforces them server-side. The combined `/demo` page is a legacy Voice-first validation surface with optional typed input, not the target Chat experience. The manager dashboard handoff documents exact response fields and page mappings. | Build login plus equal first-class Chat and Voice experiences for customers and reps, the rep queue, and the manager dashboard without moving domain or authorization logic into the browser. | Feature 12 |
+| Evaluation and evidence | **Pending P0 scoring gate** | Focused unit/integration tests and deterministic fixtures already verify individual behavior. | Add a versioned evaluation corpus, quality/safety/latency measurements, machine-readable and judge-readable reports, regression thresholds, and a manager quality card. | Feature 13 |
+| ADK specialist delegation and trace | **Pending P1 scoring gate** | Specialist domain services and agent modules exist, but the active root path primarily invokes deterministic tools. | Add explicit specialist-agent delegation, typed handoffs, trace IDs, routing evaluation, and failure/duplicate-invocation coverage while retaining deterministic services underneath. | Feature 14 |
+| Proactive prevention queue | **Pending P1 scoring gate** | Exact-claim readiness and intervention events work for claims encountered during a conversation. | Add restart-safe population scanning, transparent prioritization, rep work items, intervention progression, and dashboard evidence. | Feature 15 |
+| Durable runtime boundary | **Pending P1 scoring gate** | Auth and synthetic operations are persisted locally; ADK sessions and Sentinel events are in process. | Add repository interfaces, local durable adapters, idempotent jobs, event replay/deduplication, audit records, health checks, and one-command containerized startup. | Feature 16 |
 
 Current verified backend checkpoint: **152 tests passed, 3 skipped, and 216
 subtests passed**. At user direction, this checkpoint was verified through
@@ -56,10 +60,14 @@ The complete hackathon demo should show one grounded workflow:
    another adult member.
 5. Explain an existing claim in plain language.
 6. Answer a related coverage, prior-authorization, or cost-sharing question.
-7. Inspect a Pending or In Review claim for reviewed readiness risks.
-8. Recommend and record a corrective intervention.
+7. Proactively scan Pending and In Review claims and create a prioritized rep
+   work item from reviewed readiness evidence.
+8. Inspect the work item, recommend an action, and record a corrective
+   intervention.
 9. As a manager, show the resulting events and alerts alongside persisted metric
    trends, automated/manual workload, and the intervention funnel.
+10. Show the agent handoff trace and the latest evaluation report so routing,
+    grounding, ROI safety, and latency claims are auditable.
 
 The business story is a shift from reactive explanation toward proactive,
 trusted self-service:
@@ -98,6 +106,20 @@ make an earlier feature truthful.
 | **P2 — Stretch** | Implement only if the complete demo and its deterministic contingency path remain reliable. |
 | **Future** | Present as the enterprise path; do not attempt during the hackathon. |
 
+### Rating-5 evidence rule
+
+Features 12–16 are scoring gates, not a request to maximize feature count. Each
+must produce judge-visible evidence in addition to code and tests:
+
+- a working role-appropriate surface or direct workflow output
+- a trace from user or scheduled trigger through grounded action
+- a reproducible verification command and saved result
+- an explicit limitation statement for synthetic assumptions or local storage
+- a deterministic contingency that preserves truthful demo behavior
+
+Do not start a lower-value P2 item while a rating-5 scoring gate remains
+incomplete unless the gate is blocked by unavailable reviewed data.
+
 ### Honest prototype language
 
 The hackathon implementation may use deterministic rules and synthetic data,
@@ -127,8 +149,8 @@ but it must be labeled accurately:
 Claim Assist targets three role-specific user-facing surfaces:
 
 - **Customer experience:** equal first-class Chat and Voice with complete typed
-  or spoken AI responses,
-  plus the customer's own claim stories, benefit answers, ROI guidance,
+  or spoken AI responses, plus the customer's own claim stories, benefit
+  answers, ROI guidance,
   readiness results, notification previews, and safe escalation.
 - **Representative experience:** a future queue of customers who need help,
   plus equal first-class Chat and Voice with complete typed or spoken AI
@@ -159,11 +181,11 @@ flowchart TD
     Auth["Auth API + RBAC<br/>opaque session cookie"]
     AuthDB["Shared local SQLite<br/>users, sessions, and synthetic operations"]
     API["FastAPI + ADK application<br/>REST, SSE, WebSocket"]
-    Orchestrator["ADK orchestrator<br/>intent, session state, tool routing"]
-    ROI["ROI gatekeeper<br/>disclosure decision"]
-    Claim["Claim Story<br/>timeline and denial guidance"]
-    Benefits["Benefits Q&A<br/>coverage, prior auth, cost, providers"]
-    Readiness["Claim Readiness<br/>deterministic rules"]
+    Orchestrator["ADK orchestrator<br/>typed specialist delegation"]
+    ROI["ROI specialist agent<br/>disclosure decision"]
+    Claim["Claim Story specialist agent<br/>timeline and denial guidance"]
+    Benefits["Benefits specialist agent<br/>coverage, prior auth, cost, providers"]
+    Readiness["Readiness specialist agent<br/>deterministic rules"]
     Preview["Notification preview"]
     ClaimsData["Claims data<br/>BigQuery or synthetic fixtures"]
     BenefitsData["Coverage, member, ROI, provider data<br/>CSV or BigQuery"]
@@ -173,6 +195,10 @@ flowchart TD
     DashboardAPI["Manager-only persisted dashboard API<br/>date filters + weekly/monthly trends"]
     OperationsStore["Synthetic operations history<br/>calls, reps, intervention workflow"]
     SummaryAPI["Authorized session-summary API"]
+    Scanner["Restart-safe readiness scanner<br/>deduplication + thresholds"]
+    WorkQueue["Rep prevention work queue<br/>evidence + next action"]
+    Evaluation["Evaluation harness<br/>quality, safety, routing, latency"]
+    TraceStore["Trace and audit repository<br/>local durable adapter"]
 
     Customer --> CustomerUI
     Rep --> RepUI
@@ -194,6 +220,10 @@ flowchart TD
     Benefits --> BenefitsData
     ROI --> BenefitsData
     Readiness --> Preview
+    Scanner --> Readiness
+    Scanner --> WorkQueue
+    WorkQueue --> RepUI
+    WorkQueue -.-> EventLog
     ROI -.-> EventLog
     Claim -.-> EventLog
     Benefits -.-> EventLog
@@ -209,6 +239,10 @@ flowchart TD
     SummaryAPI --> ManagerUI
     SummaryAPI --> RepUI
     SummaryAPI --> CustomerUI
+    Orchestrator -.-> TraceStore
+    EventLog --> TraceStore
+    Evaluation -.-> Orchestrator
+    Evaluation --> ManagerUI
 ```
 
 ### Architectural responsibilities
@@ -219,12 +253,15 @@ flowchart TD
 | Authentication and RBAC | Verifies local demo credentials, owns opaque sessions, maps users to capabilities, protects HTTP/WebSocket routes, and supplies authenticated identity to ADK state. |
 | Persisted dashboard analytics | Reads the labeled synthetic operations tables in the shared local SQLite file and returns date-filtered summaries, weekly/monthly trends, routing workload, and intervention workflow counts through a manager-only API. |
 | FastAPI/ADK application | Hosts authenticated first-class Chat and Voice channels, authorized operational/summary APIs, and the legacy customer/rep Voice validation page. |
-| Orchestrator | Owns the conversation, establishes session state, enforces ROI, and invokes deterministic specialist tools while retaining control. |
+| Orchestrator and specialist agents | Own the conversation, delegate through typed handoffs to explicit ADK specialists, retain control, and preserve deterministic grounded services underneath each agent. |
 | Claim Story | Builds a grounded lifecycle and denial explanation for one exact claim. |
 | Benefits Q&A | Builds deterministic coverage, prior-authorization, cost, and provider guidance. |
 | Claim Readiness | Applies reviewed rules to one Pending or In Review claim and explains actionable evidence. |
 | Data clients | Hide CSV and BigQuery implementations behind stable interfaces. |
 | Event log and Sentinel | Keep monitoring outside the request path and convert structured events into alerts and metrics. |
+| Evaluation and trace | Measure routing, grounding, safety, refusal, and latency against versioned cases; persist traceable evidence for regressions and judge-visible inspection. |
+| Scanner and rep work queue | Evaluate eligible claims outside conversations, deduplicate actionable findings, apply transparent prioritization, and create evidence-backed rep work items. |
+| Durable runtime adapters | Persist local sessions, events, traces, evaluations, and work items behind repository interfaces with replay, idempotency, audit, and health behavior. |
 
 ## 6. Implementation baseline
 
@@ -812,7 +849,7 @@ A separate frontend dashboard is not required for this checkpoint.
 ### Feature 10 — Minimal operations dashboard
 
 - **Status:** ✅ Complete — live snapshot and persisted backend contract;
-  five-tab P2 frontend pending
+  five-tab P0 frontend pending
 - **Priority:** P1
 - **Depends on:** Feature 9
 - **Purpose:** make the event and metric story judge-visible.
@@ -876,6 +913,15 @@ Reliability requirements:
   contingency when live-model access is unavailable
 - screenshot or video backup
 
+Rating-5 extension after Features 12–15:
+
+1. Show the latest versioned evaluation result before the interaction.
+2. Trigger the readiness scan and open the resulting prioritized rep work item.
+3. Complete the grounded action through either first-class Chat or Voice.
+4. Show the typed ADK specialist handoffs and grounding trace.
+5. Return to the manager view and show the work-item progression, intervention
+   funnel, and unchanged synthetic-data disclosures.
+
 **Feature complete when:** the script succeeds repeatedly in the presentation
 environment and each displayed result can be traced to source data.
 
@@ -885,10 +931,10 @@ they form one live transaction.
 
 ### Feature 12 — Role-specific frontend integration
 
-- **Status:** ⬜ Pending — separate frontend workstream
-- **Priority:** P2
+- **Status:** ⬜ Pending — rating-5 scoring gate
+- **Priority:** P0
 - **Depends on:** Feature 0 plus the implemented conversation, session-summary,
-  events, alerts, and metrics APIs
+  events, alerts, and metrics APIs; rep Voice audio parity is part of this gate
 - **Purpose:** expose the implemented capabilities through distinct customer,
   representative, and manager experiences without changing domain or
   authorization behavior.
@@ -908,6 +954,8 @@ Minimum scope:
   manager-only metrics/dashboard contract
 - [ ] `WS /ws/conversation` for customer and rep Chat/Voice without replacing
   the active session
+- [ ] backend and frontend rep Voice parity: microphone input, transcripts, and
+  spoken AI output work for reps as they do for customers
 - [ ] no microphone permission request until the customer or rep explicitly
   selects Voice
 - [ ] complete microphone cleanup and, where enabled, audio-queue cancellation
@@ -944,22 +992,164 @@ blocked.
 customer/rep `/demo`, manager-only `/operations`, and direct auth APIs as
 backend-owned verification surfaces while it is integrated.
 
+### Feature 13 — Evaluation and evidence harness
+
+- **Status:** ⬜ Pending — rating-5 scoring gate
+- **Priority:** P0
+- **Depends on:** Features 1–8 and the current deterministic fixtures; Feature
+  12 is preferred for judge-visible rendering but not required for evaluation
+- **Purpose:** turn grounding, routing, safety, and performance claims into
+  reproducible evidence instead of relying on a successful demo alone.
+
+Deliverables:
+
+- [ ] versioned evaluation corpus covering routing, Claim Story, Benefits, ROI,
+  readiness, ambiguity, unsupported questions, and multi-turn context
+- [ ] exact expected facts, allowed sources, disclosure outcome, and escalation
+  expectation for every case
+- [ ] automated measurements for routing accuracy, grounded-fact accuracy,
+  unsupported-answer refusal, ROI safety, reviewed readiness-rule accuracy,
+  and end-to-end/per-agent latency
+- [ ] required 100% pass rate for unauthorized-disclosure cases and explicit
+  versioned thresholds for all other measures
+- [ ] machine-readable JSON result plus concise judge-readable Markdown report
+- [ ] CI regression failure when a safety or grounding threshold is missed
+- [ ] manager-facing System Quality card showing corpus version, run time,
+  headline results, and a link to failed-case evidence
+- [ ] deterministic offline evaluation command documented in `backend/README.md`
+
+Synthetic fixtures demonstrate quality and safety methodology, not production
+Humana accuracy or business impact. Latency must be labeled by environment and
+must distinguish deterministic/offline runs from credentialed model runs.
+
+**Feature complete when:** one command evaluates the versioned corpus, produces
+both reports, enforces thresholds, and exposes the latest labeled result without
+manual interpretation.
+
+**Safe stopping point:** publish the saved Markdown/JSON evaluation artifact
+even if the manager quality card is not yet rendered.
+
+### Feature 14 — Explicit ADK specialist delegation and trace
+
+- **Status:** ⬜ Pending — rating-5 scoring gate
+- **Priority:** P1
+- **Depends on:** Feature 13 routing cases and the existing deterministic domain
+  services
+- **Purpose:** demonstrate advanced multi-agent orchestration without moving
+  healthcare facts or safety decisions into unconstrained model behavior.
+
+Deliverables:
+
+- [ ] explicit ADK specialist agents for ROI, Claim Story, Benefits, and Claim
+  Readiness, with deterministic services retained underneath
+- [ ] typed handoff envelope containing intent, authenticated scope, subject
+  member, ROI state, prior findings, required output type, and trace ID
+- [ ] root-orchestrator control over delegation, clarification, escalation, and
+  final grounded response assembly
+- [ ] trace events for routing decision, specialist invocation, data/tool use,
+  confidence or refusal decision, grounding IDs, and final response
+- [ ] tests for incorrect routing, duplicate specialist execution, lost context,
+  failed handoffs, and mixed-intent/multi-turn conversations
+- [ ] routing and handoff measurements integrated into Feature 13
+- [ ] authorized trace projection that exposes evidence without prompts,
+  secrets, raw tokens, or restricted member data
+
+**Feature complete when:** the golden path visibly delegates to explicit ADK
+specialists, retains context and ROI safety, and produces a trace that matches
+the evaluated routing decision.
+
+**Safe stopping point:** keep the current tool-based orchestrator available as
+a deterministic contingency until specialist delegation passes every existing
+test and the new routing thresholds.
+
+### Feature 15 — Closed-loop proactive prevention queue
+
+- **Status:** ⬜ Pending — rating-5 scoring gate
+- **Priority:** P1
+- **Depends on:** Features 1, 5, 9, and 12
+- **Purpose:** differentiate Claim Assist from a reactive chatbot by connecting
+  population detection to prioritized human action and auditable completion.
+
+Deliverables:
+
+- [ ] repository query for eligible Pending and In Review claims
+- [ ] explicitly triggered scanner with batch bounds, deduplication, replay
+  safety, and documented thresholds; automatic scheduling waits for Feature 16
+- [ ] transparent rules-based priority score using only reviewed evidence,
+  claim age/timing, and actionable workflow state
+- [ ] rep work item containing claim/member reference, exact evidence, urgency
+  explanation, recommended next action, grounding, and status
+- [ ] manager/rep authorization boundaries and a dedicated rep queue API
+- [ ] work-item progression from identified to assigned, reviewed, and
+  intervention recorded, with typed events at each material transition
+- [ ] rep UI flow that can open the work item in complete Chat or Voice without
+  losing the queue context
+- [ ] manager funnel and trace from scanned claim through recorded action
+- [ ] tests for duplicate scans, stale assignments, unauthorized access,
+  unsupported prioritization, and intervention correlation
+
+The priority score is a workflow heuristic, not a denial probability. Do not
+claim a denial was prevented. Any later adjudication experiment must live only
+in the labeled synthetic SQLite layer and disclose every assumption.
+
+**Feature complete when:** a repeatable scan creates an evidence-backed rep work
+item, a rep completes the grounded action, and the manager view traces the full
+workflow without double-counting.
+
+**Safe stopping point:** expose the scanner result and queue as authorized JSON
+before adding Feature 16 automatic scheduling or additional dashboard
+presentation.
+
+### Feature 16 — Durable runtime and deployment boundary
+
+- **Status:** ⬜ Pending — rating-5 scoring gate
+- **Priority:** P1
+- **Depends on:** existing auth/operations SQLite configuration and the Feature
+  15 explicitly triggered scanner/job contract
+- **Purpose:** demonstrate a credible reusable architecture beyond one process
+  without attempting full enterprise infrastructure during the hackathon.
+
+Deliverables:
+
+- [ ] repository protocols for sessions, events, traces, evaluations, work
+  items, and job checkpoints
+- [ ] local SQLite adapters using the same configured database where relational
+  integrity makes sense, with separate modules and schemas by responsibility
+- [ ] restart-safe event replay, deduplication keys, job checkpoints, and
+  idempotent work-item creation
+- [ ] restart-safe scheduler for the Feature 15 scanner with a documented
+  manual trigger retained for demos and recovery
+- [ ] structured audit records that exclude passwords, cookies, raw session
+  tokens, prompts containing restricted data, and unnecessary PHI
+- [ ] liveness/readiness checks that verify required stores and background
+  consumers
+- [ ] one-command bootstrap plus containerized backend startup
+- [ ] restart/replay, schema bootstrap, concurrency, failure-recovery, and health
+  tests
+- [ ] adapter documentation showing how managed databases, queues, and identity
+  replace local implementations without changing domain contracts
+
+**Feature complete when:** the app can restart during a seeded scan or event
+stream, resume without duplication or lost work, pass health checks, and run
+from the documented container/bootstrap command.
+
+**Safe stopping point:** implement the interfaces and SQLite adapters first;
+managed cloud infrastructure remains future work.
+
 ## 11. Stretch features requiring refinement
 
-In addition to Feature 12, these are the remaining **P2** stretch items.
-Implement them only after the complete P0/P1 demo and deterministic contingency
-path are stable:
+These are the remaining **P2** stretch items. Implement them only after Features
+12–16 and the deterministic contingency path are stable:
 
 | Stretch feature | Required refinement |
 |---|---|
-| Population-wide pending-claim scan | Add a repository list/query method and decide batch timing, deduplication, and alert thresholds. |
 | Provider/CPT/risk-factor aggregation | Ensure enough synthetic events exist to make grouping meaningful. |
 | Referral-based risk bands | Add reviewed service-specific referral requirements; do not infer from weak correlation. |
 | Modifier-based readiness rule | Add or seed eligible synthetic examples before claiming it is demonstrated. |
 | Diagnosis/CPT risk | Requires a reviewed compatibility table. |
 | WebSocket `domain_result` messages | Implement only if the session-summary endpoint is insufficient. |
 | Advanced dashboard filters and live push | Add after core alerts and metrics are stable. |
-| Complete responsive and accessible React polish | Do not trade away the complete workflow for surface polish. |
+| Production design-system polish | Add only after the responsive and accessible Feature 12 workflow is complete and tested. |
 
 ## 12. Metrics methodology
 
@@ -971,6 +1161,12 @@ path are stable:
 | ROI-gap rate | No production baseline required | Unique ROI-gap sessions divided by observed sessions | Valid for the demo event population |
 | At-risk claims identified | Zero in the manual comparison | Eligible claims matching reviewed readiness rules | Rule-match count, not predicted denials |
 | Corrective interventions recorded | Zero in the manual comparison | Live: documented corrective actions linked to readiness events. Persisted dashboard: distinct recorded claims in the intervention funnel. | Does not prove a denial was prevented; no synthetic final adjudication outcome exists |
+| Routing accuracy | Versioned Feature 13 corpus | Correct specialist handoffs divided by evaluated routing cases | Evaluation evidence, not production traffic accuracy |
+| Grounded-fact accuracy | Versioned Feature 13 corpus | Expected supported facts returned without unsupported additions | Report exact case failures and corpus version |
+| ROI safety | Required 100% on unauthorized-disclosure cases | Correct refusal or safe next step for every restricted case | A regression blocks the scoring-gate checkpoint |
+| Unsupported-answer refusal | Versioned Feature 13 corpus | Unsupported cases that refuse, clarify, or escalate instead of inventing | Must distinguish safe refusal from incomplete usefulness |
+| Readiness-rule accuracy | Reviewed labeled fixtures only | Rule outputs matching reviewed expected evidence and action | Does not validate unreviewed clinical compatibility rules |
+| Interaction latency | No business baseline implied | End-to-end and per-agent distribution by execution environment | Separate offline deterministic and credentialed model runs |
 
 ## 13. Presentation and collaboration plan
 
@@ -979,9 +1175,9 @@ Replace role placeholders with team names before the final rehearsal:
 | Time | Owner | Content |
 |---:|---|---|
 | 0:00–1:00 | Problem lead | Call-center pain, stakeholders, and target metrics |
-| 1:00–2:00 | Architecture lead | Authentication/RBAC, ADK orchestration, deterministic specialists, data boundaries, and Sentinel |
-| 2:00–5:00 | Demo lead | Customer/rep access, ROI, Claim Story, Benefits Q&A, Claim Readiness, and notification preview |
-| 5:00–6:00 | Operations lead | Manager-only Sentinel alerts, persisted metric trends, manual/automated workload, intervention funnel, methodology, and evidence trace |
+| 1:00–2:00 | Architecture lead | Authentication/RBAC, typed ADK specialist delegation, deterministic services, trace evidence, and durable boundaries |
+| 2:00–5:00 | Demo lead | First-class Chat/Voice, ROI, Claim Story, Benefits, proactive queue, Claim Readiness, and recorded action |
+| 5:00–6:00 | Operations lead | Manager trends, prevention funnel, agent trace, evaluation quality/safety results, and honest limitations |
 | 6:00–7:00 | Closing lead | Business value, limitations, enterprise path, and questions |
 
 Each owner must know the fallback path for voice, model access, frontend, and
@@ -1003,7 +1199,7 @@ Present these as the enterprise path rather than hackathon commitments:
 - production EHR, claims, CRM, and provider-system integrations
 - enterprise audit, retention, access control, security, and observability
 - controlled outcome evaluation proving whether interventions prevent denials
-- full React product polish and advanced operational analytics
+- production design-system expansion and advanced operational analytics
 
 These should replace adapters at the model, channel, client, event, and storage
 boundaries without changing the grounded specialist contracts.
